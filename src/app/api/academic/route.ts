@@ -159,9 +159,9 @@ export async function POST(request: NextRequest) {
       if (studentYear > 100) {
         studentYear = 2; // Default to Year 2 if current data looks like a calendar year
       }
-      
-      const currentSem = studentYear * 2; 
-      const previousSem = currentSem - 1; 
+
+      const currentSem = studentYear * 2;
+      const previousSem = currentSem - 1;
 
       // Get subjects for this branch
       const branchSubjects = subjectTemplates[branch] || defaultSubjects;
@@ -176,10 +176,10 @@ export async function POST(request: NextRequest) {
         // Generate semester record (SGPA/CGPA)
         const sgpa = parseFloat((6.5 + Math.random() * 2.5).toFixed(2)); // Random SGPA between 6.5-9.0
         const previousCGPA = semester === currentSem ? parseFloat((6.5 + Math.random() * 2.0).toFixed(2)) : sgpa;
-        const cgpa = semester === currentSem 
+        const cgpa = semester === currentSem
           ? parseFloat(((previousCGPA * (semester - 1) + sgpa) / semester).toFixed(2))
           : sgpa;
-        
+
         await db.semesterRecord.upsert({
           where: {
             studentId_semester: {
@@ -205,10 +205,12 @@ export async function POST(request: NextRequest) {
         });
 
         // Generate attendance for each subject
+        const attendancePercentages: number[] = [];
         for (const subject of subjects) {
           const totalClasses = 14 + Math.floor(Math.random() * 7); // 14-20 classes
           const attended = Math.floor(totalClasses * (0.6 + Math.random() * 0.35)); // 60-95% attendance
           const percentage = parseFloat(((attended / totalClasses) * 100).toFixed(1));
+          attendancePercentages.push(percentage);
 
           await db.semesterAttendance.upsert({
             where: {
@@ -238,20 +240,17 @@ export async function POST(request: NextRequest) {
 
           // Generate subject marks
           const internalMarks = parseFloat((15 + Math.random() * 15).toFixed(1)); // 15-30 out of 30
-          const externalMarks = parseFloat((40 + Math.random() * 40).toFixed(1)); // 40-80 out of 70
+          const externalMarks = parseFloat((25 + Math.random() * 45).toFixed(1)); // 25-70 out of 70 (made it lower to trigger some failures)
           const totalMarks = parseFloat((internalMarks + externalMarks).toFixed(1));
-          
-          // Calculate grade based on total marks
+
           let grade = 'F';
           let gradePoints = 0;
-          const percentage_marks = (totalMarks / 100) * 100;
-          
-          if (percentage_marks >= 90) { grade = 'O'; gradePoints = 10; }
-          else if (percentage_marks >= 80) { grade = 'A+'; gradePoints = 9; }
-          else if (percentage_marks >= 70) { grade = 'A'; gradePoints = 8; }
-          else if (percentage_marks >= 60) { grade = 'B+'; gradePoints = 7; }
-          else if (percentage_marks >= 50) { grade = 'B'; gradePoints = 6; }
-          else if (percentage_marks >= 40) { grade = 'C'; gradePoints = 5; }
+          if (totalMarks >= 90) { grade = 'O'; gradePoints = 10; }
+          else if (totalMarks >= 80) { grade = 'A+'; gradePoints = 9; }
+          else if (totalMarks >= 70) { grade = 'A'; gradePoints = 8; }
+          else if (totalMarks >= 60) { grade = 'B+'; gradePoints = 7; }
+          else if (totalMarks >= 50) { grade = 'B'; gradePoints = 6; }
+          else if (totalMarks >= 40) { grade = 'C'; gradePoints = 5; }
           else { grade = 'F'; gradePoints = 0; }
 
           await db.subjectMark.upsert({
@@ -268,26 +267,63 @@ export async function POST(request: NextRequest) {
               subjectCode: subject.code,
               subjectName: subject.name,
               credits: subject.credits,
-              internalMarks: internalMarks,
-              externalMarks: externalMarks,
-              totalMarks: totalMarks,
-              grade: grade,
-              gradePoints: gradePoints,
+              internalMarks,
+              externalMarks,
+              totalMarks,
+              grade,
+              gradePoints,
               academicYear: academicYear,
             },
             update: {
               subjectName: subject.name,
               credits: subject.credits,
-              internalMarks: internalMarks,
-              externalMarks: externalMarks,
-              totalMarks: totalMarks,
-              grade: grade,
-              gradePoints: gradePoints,
+              internalMarks,
+              externalMarks,
+              totalMarks,
+              grade,
+              gradePoints,
             }
           });
 
           recordsCreated++;
         }
+
+        // Generate Risk Assessment for the student
+        const avgAttendance = attendancePercentages.length > 0
+          ? attendancePercentages.reduce((sum, val) => sum + val, 0) / attendancePercentages.length
+          : 0;
+
+        let riskScore = 0;
+        const factors: string[] = [];
+
+        if (avgAttendance < 75) {
+          riskScore += 40 + (75 - avgAttendance);
+          factors.push('Low Attendance');
+        }
+        if (cgpa < 7.0) {
+          riskScore += 30 + (7.5 - cgpa) * 10;
+          factors.push('Low CGPA');
+        }
+
+        riskScore = Math.min(100, Math.max(0, riskScore));
+        let riskLevel: 'low' | 'medium' | 'high' = 'low';
+        if (riskScore > 25) riskLevel = 'high';
+        else if (riskScore > 1) riskLevel = 'medium';
+
+        await db.riskAssessment.upsert({
+          where: { studentId: student.id },
+          create: {
+            studentId: student.id,
+            riskScore,
+            riskLevel,
+            factors: factors.join(', '),
+          },
+          update: {
+            riskScore,
+            riskLevel,
+            factors: factors.join(', '),
+          }
+        });
       }
     }
 

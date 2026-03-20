@@ -15,8 +15,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { 
-  BookOpen, Calendar, ClipboardList, BarChart3, Settings, LogOut, 
+import {
+  BookOpen, Calendar, ClipboardList, BarChart3, Settings, LogOut,
   Menu, X, Bell, ChevronRight, Upload, FileText, Users, AlertTriangle,
   Clock, MapPin, Plus, Trash2, Edit, CheckCircle2, Circle, RefreshCw,
   TrendingUp, Award, Target, MessageSquare, Send, Download,
@@ -24,15 +24,15 @@ import {
   GraduationCap, UserCheck, AlertCircle, ChevronLeft, LayoutDashboard, Mail, Key
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { 
-  Chart as ChartJS, 
-  ArcElement, 
-  Tooltip, 
-  Legend, 
-  CategoryScale, 
-  LinearScale, 
-  PointElement, 
-  LineElement, 
+import {
+  Chart as ChartJS,
+  ArcElement,
+  Tooltip,
+  Legend,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
   BarElement,
   Title
 } from 'chart.js';
@@ -54,16 +54,16 @@ function LoginPage({ onLogin }: { onLogin: (user: User) => void }) {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    
+
     try {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ collegeId, password }),
       });
-      
+
       const data = await res.json();
-      
+
       if (data.success) {
         onLogin(data.user);
         toast.success('Login successful!');
@@ -125,7 +125,7 @@ function LoginPage({ onLogin }: { onLogin: (user: User) => void }) {
           ) : (
             <ForgotPassword onBack={() => setShowForgot(false)} />
           )}
-          
+
           <Separator className="my-4" />
           <div className="text-center text-sm text-muted-foreground bg-gray-50 dark:bg-gray-800 rounded-xl p-3">
             <p className="font-medium mb-1">Demo Credentials:</p>
@@ -148,16 +148,16 @@ function ForgotPassword({ onBack }: { onBack: () => void }) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    
+
     try {
       const res = await fetch('/api/auth/forgot-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ collegeId, email }),
       });
-      
+
       const data = await res.json();
-      
+
       if (data.success) {
         setSent(true);
         toast.success('Reset link sent to your email');
@@ -212,7 +212,7 @@ function ChangePasswordDialog({ open, onOpenChange }: { open: boolean; onOpenCha
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (newPassword !== confirmPassword) {
       toast.error('Passwords do not match');
       return;
@@ -222,21 +222,21 @@ function ChangePasswordDialog({ open, onOpenChange }: { open: boolean; onOpenCha
       toast.error('Password must be at least 6 characters');
       return;
     }
-    
+
     setLoading(true);
-    
+
     try {
       const res = await fetch('/api/auth/change-password', {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({ currentPassword, newPassword }),
       });
-      
+
       const data = await res.json();
-      
+
       if (data.success) {
         toast.success('Password changed successfully');
         onOpenChange(false);
@@ -423,19 +423,19 @@ function StudentDetailsDialog({ open, onOpenChange, student, onSendWarning, onAl
 
           {/* Action Buttons */}
           <Separator />
-          
+
           {!showWarningForm && !showParentForm ? (
             <div className="grid grid-cols-2 gap-3">
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 className="h-auto py-3 flex-col gap-1 rounded-xl border-orange-200 hover:bg-orange-50 hover:border-orange-300"
                 onClick={() => setShowWarningForm(true)}
               >
                 <AlertTriangle className="w-5 h-5 text-orange-500" />
                 <span className="text-xs">Send Warning</span>
               </Button>
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 className="h-auto py-3 flex-col gap-1 rounded-xl border-red-200 hover:bg-red-50 hover:border-red-300"
                 onClick={() => setShowParentForm(true)}
               >
@@ -498,14 +498,14 @@ function PointsPage() {
           const totalMarks = marks.reduce((sum: number, m: any) => sum + (m.totalMarks || 0), 0);
           const avgScore = marks.length > 0 ? (totalMarks / marks.length).toFixed(1) : 0;
           const topScore = marks.length > 0 ? Math.max(...marks.map((m: any) => m.totalMarks || 0)) : 0;
-          
+
           setStats({
             cgpa: data.data.stats?.currentCGPA || 0,
             avgScore: Number(avgScore),
             topScore: topScore,
             subjectCount: marks.length
           });
-          
+
           const idHash = user.id.split('').reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0);
           const academicPts = Math.floor((data.data.stats?.currentCGPA || 7) * 10);
           const socialPts = (idHash % 50) + 20;
@@ -624,9 +624,9 @@ function PointsPage() {
 
 function NotificationsDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const { messages, user } = useAppStore();
-  
+
   // Filter messages for the current user (student gets messages sent to them or all students)
-  const userMessages = user?.role === 'student' 
+  const userMessages = user?.role === 'student'
     ? messages.filter(m => m.receiverId === user.id || m.targetType === 'student' || m.targetType === 'all')
     : messages;
 
@@ -665,7 +665,7 @@ function NotificationsDialog({ open, onOpenChange }: { open: boolean; onOpenChan
             {user?.role === 'student' ? 'Your messages and alerts' : 'Sent messages'}
           </DialogDescription>
         </DialogHeader>
-        
+
         <ScrollArea className="flex-1 -mx-6">
           <div className="px-6 pb-4 space-y-2">
             {userMessages.length === 0 ? (
@@ -675,8 +675,8 @@ function NotificationsDialog({ open, onOpenChange }: { open: boolean; onOpenChan
               </div>
             ) : (
               userMessages.map((message) => (
-                <div 
-                  key={message.id} 
+                <div
+                  key={message.id}
                   className={`p-3 rounded-xl border ${!message.isRead ? 'bg-slate-50 dark:bg-slate-900/10 border-slate-200 dark:border-slate-800' : 'bg-gray-50 dark:bg-gray-800/50 border-transparent'}`}
                 >
                   <div className="flex items-start gap-3">
@@ -698,12 +698,12 @@ function NotificationsDialog({ open, onOpenChange }: { open: boolean; onOpenChan
                       <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{message.content}</p>
                       <div className="flex items-center gap-2 mt-1.5">
                         <Badge variant="outline" className="text-[10px] rounded-lg">
-                          {message.targetType === 'student' ? 'To Student' : 
-                           message.targetType === 'parent' ? 'To Parent' : 'To All'}
+                          {message.targetType === 'student' ? 'To Student' :
+                            message.targetType === 'parent' ? 'To Parent' : 'To All'}
                         </Badge>
                         <span className="text-[10px] text-muted-foreground">
-                          {new Date(message.sentAt).toLocaleDateString('en-US', { 
-                            month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' 
+                          {new Date(message.sentAt).toLocaleDateString('en-US', {
+                            month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
                           })}
                         </span>
                       </div>
@@ -723,7 +723,7 @@ function NotificationsDialog({ open, onOpenChange }: { open: boolean; onOpenChan
 
 function DailyQuoteCard() {
   const { dailyQuote, setDailyQuote } = useAppStore();
-  
+
   const refreshQuote = () => {
     const quotes: DailyQuote[] = [
       { quote: "Education is the most powerful weapon which you can use to change the world.", author: "Nelson Mandela" },
@@ -798,16 +798,15 @@ function DesktopSidebar() {
 
   // Get unread notifications count
   const { messages } = useAppStore();
-  const userMessages = user?.role === 'student' 
+  const userMessages = user?.role === 'student'
     ? messages.filter(m => m.receiverId === user.id || m.targetType === 'student' || m.targetType === 'all')
     : messages;
   const unreadCount = userMessages.filter(m => !m.isRead).length;
 
   return (
     <>
-      <aside className={`hidden lg:flex flex-col fixed left-0 top-0 z-40 h-screen bg-white dark:bg-gray-900 border-r border-gray-100 dark:border-gray-800 transition-all duration-300 ${
-        sidebarCollapsed ? 'w-[72px]' : 'w-[240px]'
-      }`}>
+      <aside className={`hidden lg:flex flex-col fixed left-0 top-0 z-40 h-screen bg-white dark:bg-gray-900 border-r border-gray-100 dark:border-gray-800 transition-all duration-300 ${sidebarCollapsed ? 'w-[72px]' : 'w-[240px]'
+        }`}>
         {/* Logo & Toggle */}
         <div className="p-4 border-b border-gray-100 dark:border-gray-800">
           <div className={`flex items-center ${sidebarCollapsed ? 'justify-center' : 'gap-3'}`}>
@@ -854,8 +853,8 @@ function DesktopSidebar() {
             </div>
             {user?.role === 'student' && user?.loginTime && (
               <p className="text-[10px] text-muted-foreground mt-2">
-                Logged in: {new Date(user.loginTime).toLocaleString('en-US', { 
-                  month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' 
+                Logged in: {new Date(user.loginTime).toLocaleString('en-US', {
+                  month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
                 })}
               </p>
             )}
@@ -869,13 +868,11 @@ function DesktopSidebar() {
               <button
                 key={item.id}
                 onClick={() => setActiveTab(item.id)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${
-                  sidebarCollapsed ? 'justify-center' : ''
-                } ${
-                  activeTab === item.id
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${sidebarCollapsed ? 'justify-center' : ''
+                  } ${activeTab === item.id
                     ? 'bg-slate-50 dark:bg-slate-900/20 text-slate-600 dark:text-slate-400 shadow-sm'
                     : 'text-muted-foreground hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-foreground'
-                }`}
+                  }`}
                 title={sidebarCollapsed ? item.label : undefined}
               >
                 <item.icon className={`w-5 h-5 shrink-0 ${activeTab === item.id ? 'text-slate-500' : ''}`} />
@@ -896,7 +893,7 @@ function DesktopSidebar() {
             <ChevronLeft className={`w-5 h-5 transition-transform duration-300 ${sidebarCollapsed ? 'rotate-180' : ''}`} />
             {!sidebarCollapsed && <span className="ml-2">Collapse</span>}
           </Button>
-          
+
           {!sidebarCollapsed && (
             <>
               <Button variant="ghost" className="w-full justify-start rounded-xl text-muted-foreground hover:text-foreground" onClick={() => setShowChangePassword(true)}>
@@ -909,7 +906,7 @@ function DesktopSidebar() {
               </Button>
             </>
           )}
-          
+
           {sidebarCollapsed && (
             <>
               <Button variant="ghost" size="icon" className="w-full rounded-xl" onClick={() => setShowChangePassword(true)} title="Change Password">
@@ -960,15 +957,13 @@ function MobileBottomNav() {
           <button
             key={item.id}
             onClick={() => setActiveTab(item.id)}
-            className={`flex flex-col items-center justify-center gap-1 py-2 px-3 rounded-xl transition-all duration-200 ${
-              activeTab === item.id
-                ? 'text-slate-600 dark:text-slate-400'
-                : 'text-muted-foreground'
-            }`}
+            className={`flex flex-col items-center justify-center gap-1 py-2 px-3 rounded-xl transition-all duration-200 ${activeTab === item.id
+              ? 'text-slate-600 dark:text-slate-400'
+              : 'text-muted-foreground'
+              }`}
           >
-            <div className={`p-1.5 rounded-xl transition-all duration-200 ${
-              activeTab === item.id ? 'bg-slate-100 dark:bg-slate-900/30' : ''
-            }`}>
+            <div className={`p-1.5 rounded-xl transition-all duration-200 ${activeTab === item.id ? 'bg-slate-100 dark:bg-slate-900/30' : ''
+              }`}>
               <item.icon className="w-5 h-5" />
             </div>
             <span className="text-[10px] font-medium">{item.label}</span>
@@ -1068,7 +1063,7 @@ function StudentDashboard() {
         const data = await res.json();
         if (data.success && data.data.stats) {
           setStats(data.data.stats);
-          
+
           // Generate unique pseudo-random points based on student ID to show varied data per user
           const idHash = user.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
           const academicScore = data.data.stats.currentCGPA || 7;
@@ -1164,7 +1159,7 @@ function StudentDashboard() {
             </div>
             <div className="text-2xl font-bold text-blue-700 dark:text-blue-300">{cgpa}</div>
             <div className="mt-2 h-1.5 bg-blue-100 dark:bg-blue-900 rounded-full overflow-hidden">
-              <div 
+              <div
                 className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full"
                 style={{ width: `${(parseFloat(cgpa as string) / 10) * 100}%` }}
               />
@@ -1181,7 +1176,7 @@ function StudentDashboard() {
             </div>
             <div className="text-2xl font-bold text-emerald-700 dark:text-emerald-300">{attendancePercent}%</div>
             <div className="mt-2 h-1.5 bg-emerald-100 dark:bg-emerald-900 rounded-full overflow-hidden">
-              <div 
+              <div
                 className="h-full bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full"
                 style={{ width: `${attendancePercent}%` }}
               />
@@ -1198,7 +1193,7 @@ function StudentDashboard() {
             </div>
             <div className="text-2xl font-bold text-amber-700 dark:text-amber-300">{dynamicPoints.totalPoints}</div>
             <div className="mt-2 h-1.5 bg-amber-100 dark:bg-amber-900 rounded-full overflow-hidden">
-              <div 
+              <div
                 className="h-full bg-gradient-to-r from-amber-500 to-orange-500 rounded-full"
                 style={{ width: `${Math.min((dynamicPoints.totalPoints / 300) * 100, 100)}%` }}
               />
@@ -1264,7 +1259,7 @@ function StudentDashboard() {
                 ];
                 const color = colors[index % colors.length];
                 return (
-                  <div 
+                  <div
                     key={course.id}
                     className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 dark:bg-gray-800/50"
                   >
@@ -1426,7 +1421,7 @@ function CoursesPage() {
 
 function CourseDialog({ open, onOpenChange, course }: { open: boolean; onOpenChange: (open: boolean) => void; course?: Course | null }) {
   const { addCourse, updateCourse } = useAppStore();
-  
+
   const getInitialFormData = useCallback(() => course ? {
     name: course.name,
     code: course.code,
@@ -1446,7 +1441,7 @@ function CourseDialog({ open, onOpenChange, course }: { open: boolean; onOpenCha
     endTime: '10:00',
     location: '',
   }, [course]);
-  
+
   const [formData, setFormData] = useState(getInitialFormData);
 
   // Reset form when dialog opens with new course
@@ -1577,9 +1572,8 @@ function AssignmentsPage() {
               <CardContent className="p-3">
                 <div className="flex items-center gap-3">
                   <button
-                    className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors shrink-0 ${
-                      assignment.status === 'completed' ? 'bg-slate-500 border-slate-500' : 'border-gray-300'
-                    }`}
+                    className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors shrink-0 ${assignment.status === 'completed' ? 'bg-slate-500 border-slate-500' : 'border-gray-300'
+                      }`}
                     onClick={() => updateAssignment(assignment.id, {
                       status: assignment.status === 'completed' ? 'todo' : 'completed'
                     })}
@@ -1701,16 +1695,16 @@ function StatisticsPage() {
 
   // Get selected semester data
   const selectedData = semesterData[selectedSemester as keyof typeof semesterData];
-  
+
   // Calculate overall CGPA from completed semesters
-  const overallCGPA = completedSemesters.length > 0 
+  const overallCGPA = completedSemesters.length > 0
     ? (completedSemesters.reduce((sum, sem) => sum + semesterData[sem as keyof typeof semesterData].cgpa, 0) / completedSemesters.length).toFixed(2)
     : '0.00';
 
   const totalCredits = courses.reduce((sum, c) => sum + c.credits, 0);
   const completedCredits = completedSemesters.reduce((sum, sem) => sum + semesterData[sem as keyof typeof semesterData].credits, 0);
   const avgScore = marks.length > 0 ? (marks.reduce((sum, m) => sum + m.score, 0) / marks.length).toFixed(1) : '78.5';
-  
+
   const gpaData = {
     labels: completedSemesters.map(s => `Sem ${s}`),
     datasets: [{
@@ -1825,8 +1819,8 @@ function StatisticsPage() {
                 {completedSemesters.map((sem) => {
                   const data = semesterData[sem as keyof typeof semesterData];
                   return (
-                    <tr 
-                      key={sem} 
+                    <tr
+                      key={sem}
                       className={`border-b last:border-0 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors ${selectedSemester === sem ? 'bg-blue-50/50 dark:bg-blue-900/20' : ''}`}
                       onClick={() => setSelectedSemester(sem)}
                     >
@@ -2030,7 +2024,7 @@ function TimetablePage() {
                 <th className="p-2 text-center text-xs font-medium text-gray-600 dark:text-gray-300 border-r border-gray-200 dark:border-gray-700">8:40-9:40</th>
                 <th className="p-2 text-center text-xs font-medium text-gray-600 dark:text-gray-300 border-r border-gray-200 dark:border-gray-700">9:50-10:50</th>
                 <th className="p-2 text-center text-xs font-medium text-gray-600 dark:text-gray-300 border-r border-gray-200 dark:border-gray-700">11:00-12:00</th>
-                <th className="p-2 text-center text-xs font-bold text-gray-600 dark:text-gray-300 bg-gray-200 dark:bg-gray-700 border-r border-gray-200 dark:border-gray-700">LUNCH<br/><span className="text-[10px] font-normal">12:10-1:00</span></th>
+                <th className="p-2 text-center text-xs font-bold text-gray-600 dark:text-gray-300 bg-gray-200 dark:bg-gray-700 border-r border-gray-200 dark:border-gray-700">LUNCH<br /><span className="text-[10px] font-normal">12:10-1:00</span></th>
                 <th className="p-2 text-center text-xs font-medium text-gray-600 dark:text-gray-300 border-r border-gray-200 dark:border-gray-700">1:00-2:00</th>
                 <th className="p-2 text-center text-xs font-medium text-gray-600 dark:text-gray-300">2:00-3:00</th>
               </tr>
@@ -2050,9 +2044,9 @@ function TimetablePage() {
                       );
                     }
                     const subject = getSubjectForSlot(day, selectedSection, slot);
-                    const isCurrentHour = new Date().getHours() >= parseInt(slot.label.split(':')[0]) && 
-                                         new Date().getHours() < parseInt(slot.label.split(':')[0]) + 1 &&
-                                         day === days[new Date().getDay() - 1];
+                    const isCurrentHour = new Date().getHours() >= parseInt(slot.label.split(':')[0]) &&
+                      new Date().getHours() < parseInt(slot.label.split(':')[0]) + 1 &&
+                      day === days[new Date().getDay() - 1];
                     return (
                       <td key={slot.time} className={`p-1 border-r border-gray-200 dark:border-gray-700 ${isCurrentHour ? 'bg-slate-50 dark:bg-slate-900/20' : ''}`}>
                         {subject ? (
@@ -2204,7 +2198,7 @@ function AttendanceUpdatePage() {
       toast.error('Please mark attendance for at least one student');
       return;
     }
-    
+
     setIsSaving(true);
     // Simulate API call
     await new Promise(resolve => setTimeout(resolve, 1000));
@@ -2378,8 +2372,8 @@ function AttendanceUpdatePage() {
                     </td>
                     <td className="py-2 px-3 text-xs">{student.year}</td>
                     <td className="py-2 px-3">
-                      <Select 
-                        value={attendanceData[student.id] || ''} 
+                      <Select
+                        value={attendanceData[student.id] || ''}
                         onValueChange={(v) => handleAttendanceChange(student.id, v as 'present' | 'absent' | 'late')}
                       >
                         <SelectTrigger className={`w-24 h-8 rounded-lg text-xs ${getStatusColor(attendanceData[student.id])}`}>
@@ -2449,14 +2443,14 @@ function AttendanceDetailDialog({ open, onOpenChange, course }: AttendanceDetail
       'Review session',
       'Assessment',
     ];
-    
+
     for (let i = 0; i < courseData.totalClasses; i++) {
       const date = new Date();
       date.setDate(date.getDate() - (courseData.totalClasses - i - 1) * 3);
-      
+
       // Randomly determine if present or absent based on attendance percentage
       const isPresent = Math.random() * 100 < courseData.percent;
-      
+
       records.push({
         id: `cr-${i}`,
         date,
@@ -2480,7 +2474,7 @@ function AttendanceDetailDialog({ open, onOpenChange, course }: AttendanceDetail
           <DialogTitle className="text-lg">Class Details</DialogTitle>
           <DialogDescription>Attendance history for {course.courseName}</DialogDescription>
         </DialogHeader>
-        
+
         {/* Course Summary Table */}
         <div className="overflow-x-auto rounded-xl border">
           <table className="w-full text-sm">
@@ -2504,7 +2498,7 @@ function AttendanceDetailDialog({ open, onOpenChange, course }: AttendanceDetail
             </tbody>
           </table>
         </div>
-        
+
         {/* Attendance History Table */}
         <div className="flex-1 overflow-hidden">
           <ScrollArea className="h-[300px]">
@@ -2527,11 +2521,10 @@ function AttendanceDetailDialog({ open, onOpenChange, course }: AttendanceDetail
                     <td className="py-2 px-3 text-xs">{record.startTime}</td>
                     <td className="py-2 px-3 text-xs">{record.endTime}</td>
                     <td className="py-2 px-3 text-center">
-                      <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${
-                        record.status === 'P' 
-                          ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' 
-                          : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                      }`}>
+                      <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${record.status === 'P'
+                        ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                        : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                        }`}>
                         {record.status}
                       </span>
                     </td>
@@ -2542,7 +2535,7 @@ function AttendanceDetailDialog({ open, onOpenChange, course }: AttendanceDetail
             </table>
           </ScrollArea>
         </div>
-        
+
         <DialogFooter className="flex-col sm:flex-row gap-2">
           <p className="text-xs text-muted-foreground flex-1">
             Date: {new Date().toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' })} {new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
@@ -2621,7 +2614,7 @@ function AttendanceCGPAPage() {
   useEffect(() => {
     const fetchAcademicData = async () => {
       if (!user?.id) return;
-      
+
       setLoading(true);
       try {
         const res = await fetch(`/api/academic?studentId=${user.id}`);
@@ -2662,13 +2655,13 @@ function AttendanceCGPAPage() {
   const recentSemesters = allSemesters; // Show all semesters instead of just 2
 
   // Filter marks by semester for performance table (uses its own independent dropdown)
-  const filteredMarks = performanceSemester === 'all' 
+  const filteredMarks = performanceSemester === 'all'
     ? subjectMarks.filter(m => recentSemesters.includes(m.semester))
     : subjectMarks.filter(m => m.semester.toString() === performanceSemester);
 
   // Filter semesters based on selection (limit to 2 most recent)
-  const filteredSemesters = selectedSemester === 'all' 
-    ? recentSemesters 
+  const filteredSemesters = selectedSemester === 'all'
+    ? recentSemesters
     : [parseInt(selectedSemester)];
 
   // Filter semester records to all semesters (fix for Issue 1: Straight line trend)
@@ -2794,11 +2787,10 @@ function AttendanceCGPAPage() {
                 </thead>
                 <tbody>
                   {semesterData[semester]?.map((course, index) => (
-                    <tr 
-                      key={course.courseCode} 
-                      className={`border-b last:border-0 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-900/10 transition-colors ${
-                        index % 2 === 0 ? 'bg-white dark:bg-gray-900' : 'bg-gray-50/50 dark:bg-gray-800/30'
-                      }`}
+                    <tr
+                      key={course.courseCode}
+                      className={`border-b last:border-0 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-900/10 transition-colors ${index % 2 === 0 ? 'bg-white dark:bg-gray-900' : 'bg-gray-50/50 dark:bg-gray-800/30'
+                        }`}
                       onClick={() => handleCourseClick(course)}
                     >
                       <td className="py-2.5 px-3 text-sm font-medium text-slate-600">{course.courseCode}</td>
@@ -2806,13 +2798,12 @@ function AttendanceCGPAPage() {
                       <td className="py-2.5 px-3 text-sm text-center">{course.totalClasses}</td>
                       <td className="py-2.5 px-3 text-sm text-center">{course.attended}</td>
                       <td className="py-2.5 px-3 text-center">
-                        <Badge className={`text-xs rounded-lg ${
-                          course.percent >= 75 
-                            ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' 
-                            : course.percent >= 60 
-                            ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' 
+                        <Badge className={`text-xs rounded-lg ${course.percent >= 75
+                          ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                          : course.percent >= 60
+                            ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
                             : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                        }`}>
+                          }`}>
                           {course.percent}%
                         </Badge>
                       </td>
@@ -2870,7 +2861,7 @@ function AttendanceCGPAPage() {
                         const yearApprox = record?.academicYear || '2024-25';
                         const yearBase = yearApprox.split('-')[0] || new Date().getFullYear().toString();
                         const examName = `BTech (${user?.branch || 'CSE'}) ${semString} Semester, ${yearBase}`;
-                        
+
                         return (
                           <tr key={sem} className="border-b last:border-0 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer transition-colors" onClick={() => setPerformanceSemester(sem.toString())}>
                             <td className="py-3 px-4 text-center text-sm font-medium text-muted-foreground">{idx + 1}</td>
@@ -2890,7 +2881,7 @@ function AttendanceCGPAPage() {
             const sem = parseInt(performanceSemester);
             const record = recentSemesterRecords.find(r => r.semester === sem);
             const marksForSem = subjectMarks.filter(m => m.semester === sem);
-            
+
             const actualSem = sem > 8 ? (sem % 2 === 0 ? 2 : 1) : sem;
             const semString = actualSem === 1 ? '1st' : actualSem === 2 ? '2nd' : actualSem === 3 ? '3rd' : actualSem + 'th';
             const yearApprox = record?.academicYear || '2024-25';
@@ -2908,7 +2899,7 @@ function AttendanceCGPAPage() {
                     <ChevronLeft className="w-3.5 h-3.5 mr-1" /> Back to List
                   </Button>
                 </CardHeader>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 lg:p-6 border-b bg-slate-50/50 dark:bg-slate-900/20 text-sm">
                   <div className="space-y-2.5">
                     <div className="grid grid-cols-[110px_auto] gap-2">
@@ -2962,14 +2953,13 @@ function AttendanceCGPAPage() {
                             <td className="py-3 px-4 text-center text-xs text-muted-foreground border-l border-slate-100 dark:border-slate-800/50 hidden sm:table-cell">{mark.subjectName?.toLowerCase().includes('lab') ? 'Sessional' : 'Theory & Sessional'}</td>
                             <td className="py-3 px-4 text-center text-sm font-semibold text-muted-foreground border-l border-slate-100 dark:border-slate-800/50">{mark.credits || 4}</td>
                             <td className="py-3 px-4 text-center border-l border-slate-100 dark:border-slate-800/50">
-                              <Badge variant="outline" className={`${
-                                mark.grade?.startsWith('O') || mark.grade?.startsWith('A') 
-                                  ? 'bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800' 
-                                  : mark.grade?.startsWith('B') 
-                                    ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800' 
-                                    : mark.grade === 'F' 
-                                      ? 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800'
-                                      : 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-900/20 dark:text-orange-400 dark:border-orange-800'
+                              <Badge variant="outline" className={`${mark.grade?.startsWith('O') || mark.grade?.startsWith('A')
+                                ? 'bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800'
+                                : mark.grade?.startsWith('B')
+                                  ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800'
+                                  : mark.grade === 'F'
+                                    ? 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800'
+                                    : 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-900/20 dark:text-orange-400 dark:border-orange-800'
                                 } px-2.5 py-0.5 font-bold shadow-sm`}>
                                 {mark.grade || '-'}
                               </Badge>
@@ -2999,10 +2989,10 @@ function AttendanceCGPAPage() {
       </div>
 
       {/* Attendance Detail Dialog */}
-      <AttendanceDetailDialog 
-        open={showDetailDialog} 
-        onOpenChange={setShowDetailDialog} 
-        course={selectedCourse} 
+      <AttendanceDetailDialog
+        open={showDetailDialog}
+        onOpenChange={setShowDetailDialog}
+        course={selectedCourse}
       />
     </div>
   );
@@ -3015,7 +3005,7 @@ function MessagesPage() {
   const [filter, setFilter] = useState<'all' | 'unread' | 'warning' | 'alert' | 'info'>('all');
   const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
   const [activeTab, setActiveTab] = useState<'messages' | 'contact'>('messages');
-  
+
   // Contact Teachers state
   const [selectedTeacher, setSelectedTeacher] = useState('');
   const [contactSubject, setContactSubject] = useState('');
@@ -3047,7 +3037,7 @@ function MessagesPage() {
   }, []);
 
   // Filter messages for the current student
-  const userMessages = user?.role === 'student' 
+  const userMessages = user?.role === 'student'
     ? messages.filter(m => m.receiverId === user.id || m.targetType === 'student' || m.targetType === 'all')
     : messages;
 
@@ -3060,7 +3050,7 @@ function MessagesPage() {
   const unreadCount = userMessages.filter(m => !m.isRead).length;
 
   const markAsRead = (messageId: string) => {
-    setMessages(messages.map(m => 
+    setMessages(messages.map(m =>
       m.id === messageId ? { ...m, isRead: true } : m
     ));
   };
@@ -3100,9 +3090,9 @@ function MessagesPage() {
       toast.error('Please fill all fields');
       return;
     }
-    
+
     const teacher = facultyMembers.find(f => f.id === selectedTeacher);
-    
+
     // Add message directly to teacher's messages
     addMessage({
       id: Date.now().toString(),
@@ -3116,9 +3106,9 @@ function MessagesPage() {
       isRead: false,
       sentAt: new Date(),
     });
-    
+
     toast.success(`Message sent to ${teacher?.name}!`);
-    
+
     // Reset form
     setSelectedTeacher('');
     setContactSubject('');
@@ -3132,7 +3122,7 @@ function MessagesPage() {
         <div>
           <h2 className="text-xl font-bold">Messages</h2>
           <p className="text-sm text-muted-foreground">
-            {activeTab === 'messages' 
+            {activeTab === 'messages'
               ? (unreadCount > 0 ? `${unreadCount} unread message${unreadCount > 1 ? 's' : ''}` : 'All caught up!')
               : 'Send a message directly to your teachers'
             }
@@ -3192,7 +3182,7 @@ function MessagesPage() {
             ))}
           </div>
 
-      {/* Messages List */}
+          {/* Messages List */}
           <div className="space-y-2">
             {filteredMessages.length === 0 ? (
               <Card className="border-0 shadow-md rounded-2xl">
@@ -3208,11 +3198,10 @@ function MessagesPage() {
               </Card>
             ) : (
               filteredMessages.map((message) => (
-                <Card 
-                  key={message.id} 
-                  className={`border-0 shadow-md rounded-2xl cursor-pointer transition-all duration-200 hover:shadow-lg ${
-                    !message.isRead ? 'bg-slate-50/50 dark:bg-slate-900/10 ring-1 ring-slate-200 dark:ring-slate-800' : ''
-                  }`}
+                <Card
+                  key={message.id}
+                  className={`border-0 shadow-md rounded-2xl cursor-pointer transition-all duration-200 hover:shadow-lg ${!message.isRead ? 'bg-slate-50/50 dark:bg-slate-900/10 ring-1 ring-slate-200 dark:ring-slate-800' : ''
+                    }`}
                   onClick={() => {
                     setSelectedMessage(message);
                     if (!message.isRead) markAsRead(message.id);
@@ -3237,19 +3226,19 @@ function MessagesPage() {
                         )}
                         <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{message.content}</p>
                         <div className="flex items-center gap-2 mt-2">
-                          <Badge 
-                            variant="outline" 
+                          <Badge
+                            variant="outline"
                             className={`text-[10px] rounded-lg ${getBorderColor(message.messageType)}`}
                           >
                             {message.messageType.charAt(0).toUpperCase() + message.messageType.slice(1)}
                           </Badge>
                           <Badge variant="secondary" className="text-[10px] rounded-lg">
-                            {message.targetType === 'student' ? 'To Student' : 
-                             message.targetType === 'parent' ? 'To Parent' : 'To All'}
+                            {message.targetType === 'student' ? 'To Student' :
+                              message.targetType === 'parent' ? 'To Parent' : 'To All'}
                           </Badge>
                           <span className="text-[10px] text-muted-foreground">
-                            {new Date(message.sentAt).toLocaleDateString('en-US', { 
-                              month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' 
+                            {new Date(message.sentAt).toLocaleDateString('en-US', {
+                              month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
                             })}
                           </span>
                         </div>
@@ -3275,7 +3264,7 @@ function MessagesPage() {
                       <div>
                         <DialogTitle className="text-base">{selectedMessage.title}</DialogTitle>
                         <DialogDescription>
-                          {new Date(selectedMessage.sentAt).toLocaleDateString('en-US', { 
+                          {new Date(selectedMessage.sentAt).toLocaleDateString('en-US', {
                             weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
                             hour: '2-digit', minute: '2-digit'
                           })}
@@ -3285,15 +3274,15 @@ function MessagesPage() {
                   </DialogHeader>
                   <div className="space-y-4">
                     <div className="flex gap-2">
-                      <Badge 
-                        variant="outline" 
+                      <Badge
+                        variant="outline"
                         className={`rounded-lg ${getBorderColor(selectedMessage.messageType)}`}
                       >
                         {selectedMessage.messageType.charAt(0).toUpperCase() + selectedMessage.messageType.slice(1)}
                       </Badge>
                       <Badge variant="secondary" className="rounded-lg">
-                        {selectedMessage.targetType === 'student' ? 'To Student' : 
-                         selectedMessage.targetType === 'parent' ? 'To Parent' : 'To All'}
+                        {selectedMessage.targetType === 'student' ? 'To Student' :
+                          selectedMessage.targetType === 'parent' ? 'To Parent' : 'To All'}
                       </Badge>
                     </div>
                     <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-xl">
@@ -3380,8 +3369,8 @@ function MessagesPage() {
               </div>
 
               {/* Send Button */}
-              <Button 
-                onClick={handleSendMessage} 
+              <Button
+                onClick={handleSendMessage}
                 disabled={!selectedTeacher || !contactSubject || !contactMessage}
                 className="w-full rounded-xl"
               >
@@ -3400,7 +3389,7 @@ function MessagesPage() {
             <CardContent>
               <div className="space-y-2">
                 {facultyMembers.map((teacher) => (
-                  <div 
+                  <div
                     key={teacher.id}
                     className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
                     onClick={() => {
@@ -3452,7 +3441,7 @@ function SettingsPage() {
       toast.loading('Preparing database export...');
       const res = await fetch('/api/export');
       const data = await res.json();
-      
+
       if (!data.success) {
         toast.error('Export failed: ' + (data.message || 'Unknown error'));
         return;
@@ -3507,19 +3496,19 @@ function SettingsPage() {
               <p className="text-xs text-muted-foreground">Choose your preferred theme</p>
             </div>
             <div className="flex items-center border rounded-xl p-1 bg-gray-50 dark:bg-gray-800">
-              <Button 
-                variant={theme === 'light' ? 'default' : 'ghost'} 
-                size="sm" 
-                onClick={() => setTheme('light')} 
+              <Button
+                variant={theme === 'light' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setTheme('light')}
                 className={`rounded-lg text-xs ${theme === 'light' ? 'bg-slate-500 hover:bg-slate-600 text-white' : ''}`}
               >
                 <Sun className="w-4 h-4 mr-1" />
                 Light
               </Button>
-              <Button 
-                variant={theme === 'dark' ? 'default' : 'ghost'} 
-                size="sm" 
-                onClick={() => setTheme('dark')} 
+              <Button
+                variant={theme === 'dark' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setTheme('dark')}
                 className={`rounded-lg text-xs ${theme === 'dark' ? 'bg-slate-500 hover:bg-slate-600 text-white' : ''}`}
               >
                 <Moon className="w-4 h-4 mr-1" />
@@ -3667,32 +3656,32 @@ function AdminDashboard() {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 gap-3">
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               className="h-auto py-3 flex-col gap-1.5 rounded-xl hover:bg-emerald-50 hover:border-emerald-300 hover:text-emerald-600"
               onClick={() => setActiveTab('users')}
             >
               <Users className="w-5 h-5" />
               <span className="text-xs font-medium">Manage Users</span>
             </Button>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               className="h-auto py-3 flex-col gap-1.5 rounded-xl hover:bg-blue-50 hover:border-blue-300 hover:text-blue-600"
               onClick={() => setActiveTab('import')}
             >
               <Upload className="w-5 h-5" />
               <span className="text-xs font-medium">Import Data</span>
             </Button>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               className="h-auto py-3 flex-col gap-1.5 rounded-xl hover:bg-purple-50 hover:border-purple-300 hover:text-purple-600"
               onClick={() => setActiveTab('reports')}
             >
               <FileText className="w-5 h-5" />
               <span className="text-xs font-medium">View Reports</span>
             </Button>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               className="h-auto py-3 flex-col gap-1.5 rounded-xl hover:bg-orange-50 hover:border-orange-300 hover:text-orange-600"
               onClick={() => setActiveTab('settings')}
             >
@@ -3789,14 +3778,14 @@ function AdminUsersPage() {
 
   const handleDeleteUser = async () => {
     if (!deleteUserId) return;
-    
+
     setDeleting(true);
     try {
       const res = await fetch(`/api/users?userId=${deleteUserId}`, {
         method: 'DELETE'
       });
       const data = await res.json();
-      
+
       if (data.success) {
         toast.success('User deleted successfully');
         setUsers(users.filter(u => u.id !== deleteUserId));
@@ -3813,7 +3802,7 @@ function AdminUsersPage() {
 
   const filteredUsers = users.filter(user => {
     const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         user.collegeId.toLowerCase().includes(searchTerm.toLowerCase());
+      user.collegeId.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesRole = roleFilter === 'all' || user.role === roleFilter;
     return matchesSearch && matchesRole;
   });
@@ -3933,10 +3922,9 @@ function AdminUsersPage() {
                         <td className="py-3 px-4">
                           <div className="flex items-center gap-3">
                             <Avatar className="w-8 h-8">
-                              <AvatarFallback className={`text-white text-xs ${
-                                user.role === 'admin' ? 'bg-red-600' :
+                              <AvatarFallback className={`text-white text-xs ${user.role === 'admin' ? 'bg-red-600' :
                                 user.role === 'faculty' ? 'bg-purple-600' : 'bg-slate-600'
-                              }`}>
+                                }`}>
                                 {user.name?.charAt(0)}
                               </AvatarFallback>
                             </Avatar>
@@ -3990,9 +3978,9 @@ function AdminUsersPage() {
             <Button variant="outline" onClick={() => setDeleteUserId(null)} className="rounded-xl flex-1">
               Cancel
             </Button>
-            <Button 
-              variant="destructive" 
-              onClick={handleDeleteUser} 
+            <Button
+              variant="destructive"
+              onClick={handleDeleteUser}
               disabled={deleting}
               className="rounded-xl flex-1"
             >
@@ -4013,7 +4001,7 @@ function AdminImportPage() {
   const timetableRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
   const [importType, setImportType] = useState<'students' | 'faculty' | 'timetable'>('students');
-  const [importResult, setImportResult] = useState<{success: number; failed: number; errors: string[]} | null>(null);
+  const [importResult, setImportResult] = useState<{ success: number; failed: number; errors: string[] } | null>(null);
   const [showResultDialog, setShowResultDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState<'students' | 'faculty' | 'all' | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -4067,7 +4055,7 @@ T002,Prof. Ananya Das,ananya@college.edu,9876543221,Mathematics,ananya@faculty`;
   const handleCsvImport = async (type: 'students' | 'faculty') => {
     const fileInput = type === 'students' ? studentCsvRef.current : facultyCsvRef.current;
     const file = fileInput?.files?.[0];
-    
+
     if (!file) {
       toast.error('Please select a CSV file');
       return;
@@ -4080,16 +4068,16 @@ T002,Prof. Ananya Das,ananya@college.edu,9876543221,Mathematics,ananya@faculty`;
       const reader = new FileReader();
       reader.onload = async (event) => {
         const csvData = event.target?.result as string;
-        
+
         try {
           const res = await fetch('/api/import', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ type, data: csvData }),
           });
-          
+
           const result = await res.json();
-          
+
           if (result.success) {
             toast.success(result.message);
             setImportResult(result.results);
@@ -4109,7 +4097,7 @@ T002,Prof. Ananya Das,ananya@college.edu,9876543221,Mathematics,ananya@faculty`;
       toast.error('Failed to read file');
       setImporting(false);
     }
-    
+
     // Reset file input
     if (fileInput) {
       fileInput.value = '';
@@ -4118,7 +4106,7 @@ T002,Prof. Ananya Das,ananya@college.edu,9876543221,Mathematics,ananya@faculty`;
 
   const handleTimetableImport = async () => {
     const file = timetableRef.current?.files?.[0];
-    
+
     if (!file) {
       toast.error('Please select a timetable file');
       return;
@@ -4168,9 +4156,9 @@ T002,Prof. Ananya Das,ananya@college.edu,9876543221,Mathematics,ananya@faculty`;
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type }),
       });
-      
+
       const result = await res.json();
-      
+
       if (result.success) {
         toast.success(result.message);
         setShowDeleteDialog(null);
@@ -4190,7 +4178,7 @@ T002,Prof. Ananya Das,ananya@college.edu,9876543221,Mathematics,ananya@faculty`;
       toast.error('Password must be at least 6 characters');
       return;
     }
-    
+
     setResetting(true);
     try {
       const res = await fetch('/api/users/reset-passwords', {
@@ -4198,9 +4186,9 @@ T002,Prof. Ananya Das,ananya@college.edu,9876543221,Mathematics,ananya@faculty`;
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ role: resetRole, password: resetPassword }),
       });
-      
+
       const result = await res.json();
-      
+
       if (result.success) {
         toast.success(result.message);
         setShowResetDialog(false);
@@ -4242,24 +4230,24 @@ T002,Prof. Ananya Das,ananya@college.edu,9876543221,Mathematics,ananya@faculty`;
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex gap-2">
-                <Button 
-                  variant="outline" 
-                  size="sm" 
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={() => downloadTemplate('students')}
                   className="rounded-xl flex-1"
                 >
                   <Download className="w-4 h-4 mr-1" />
                   Download Template
                 </Button>
-                <input 
-                  ref={studentCsvRef} 
-                  type="file" 
-                  accept=".csv" 
-                  className="hidden" 
-                  onChange={() => handleCsvImport('students')} 
+                <input
+                  ref={studentCsvRef}
+                  type="file"
+                  accept=".csv"
+                  className="hidden"
+                  onChange={() => handleCsvImport('students')}
                 />
-                <Button 
-                  size="sm" 
+                <Button
+                  size="sm"
                   onClick={() => studentCsvRef.current?.click()}
                   disabled={importing}
                   className="rounded-xl flex-1 bg-emerald-600 hover:bg-emerald-700"
@@ -4272,7 +4260,7 @@ T002,Prof. Ananya Das,ananya@college.edu,9876543221,Mathematics,ananya@faculty`;
                   Import Students CSV
                 </Button>
               </div>
-              
+
               <div className="p-3 rounded-xl bg-gray-50 dark:bg-gray-800/50 text-xs text-muted-foreground">
                 <p className="font-medium text-foreground mb-1">Required columns:</p>
                 <p><span className="text-red-500 font-medium">collegeId*</span>, <span className="text-red-500 font-medium">name*</span>, <span className="text-red-500 font-medium">password*</span>, email, phone, branch, section, year, parentEmail, parentPhone</p>
@@ -4294,24 +4282,24 @@ T002,Prof. Ananya Das,ananya@college.edu,9876543221,Mathematics,ananya@faculty`;
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex gap-2">
-                <Button 
-                  variant="outline" 
-                  size="sm" 
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={() => downloadTemplate('faculty')}
                   className="rounded-xl flex-1"
                 >
                   <Download className="w-4 h-4 mr-1" />
                   Download Template
                 </Button>
-                <input 
-                  ref={facultyCsvRef} 
-                  type="file" 
-                  accept=".csv" 
-                  className="hidden" 
-                  onChange={() => handleCsvImport('faculty')} 
+                <input
+                  ref={facultyCsvRef}
+                  type="file"
+                  accept=".csv"
+                  className="hidden"
+                  onChange={() => handleCsvImport('faculty')}
                 />
-                <Button 
-                  size="sm" 
+                <Button
+                  size="sm"
                   onClick={() => facultyCsvRef.current?.click()}
                   disabled={importing}
                   className="rounded-xl flex-1 bg-purple-600 hover:bg-purple-700"
@@ -4324,7 +4312,7 @@ T002,Prof. Ananya Das,ananya@college.edu,9876543221,Mathematics,ananya@faculty`;
                   Import Faculty CSV
                 </Button>
               </div>
-              
+
               <div className="p-3 rounded-xl bg-gray-50 dark:bg-gray-800/50 text-xs text-muted-foreground">
                 <p className="font-medium text-foreground mb-1">Required columns:</p>
                 <p><span className="text-red-500 font-medium">collegeId*</span>, <span className="text-red-500 font-medium">name*</span>, <span className="text-red-500 font-medium">password*</span>, email, phone, department</p>
@@ -4346,15 +4334,15 @@ T002,Prof. Ananya Das,ananya@college.edu,9876543221,Mathematics,ananya@faculty`;
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex gap-2">
-                <input 
-                  ref={timetableRef} 
-                  type="file" 
-                  accept=".xlsx,.xls" 
-                  className="hidden" 
-                  onChange={handleTimetableImport} 
+                <input
+                  ref={timetableRef}
+                  type="file"
+                  accept=".xlsx,.xls"
+                  className="hidden"
+                  onChange={handleTimetableImport}
                 />
-                <Button 
-                  size="sm" 
+                <Button
+                  size="sm"
                   onClick={() => timetableRef.current?.click()}
                   disabled={importing}
                   className="rounded-xl flex-1 bg-blue-600 hover:bg-blue-700"
@@ -4367,7 +4355,7 @@ T002,Prof. Ananya Das,ananya@college.edu,9876543221,Mathematics,ananya@faculty`;
                   Import Timetable Excel
                 </Button>
               </div>
-              
+
               <div className="p-3 rounded-xl bg-gray-50 dark:bg-gray-800/50 text-xs text-muted-foreground">
                 <p className="font-medium text-foreground mb-1">Expected format:</p>
                 <p>The Excel file should have columns for Day, Section, and time slots (7:30-8:30, 8:40-9:40, etc.)</p>
@@ -4403,11 +4391,11 @@ T002,Prof. Ananya Das,ananya@college.edu,9876543221,Mathematics,ananya@faculty`;
               <p className="text-xs text-muted-foreground">Total</p>
             </div>
           </div>
-          
+
           <div className="flex gap-2">
-            <Button 
-              variant="outline" 
-              size="sm" 
+            <Button
+              variant="outline"
+              size="sm"
               onClick={() => setShowDeleteDialog('students')}
               disabled={deleting || stats.students === 0}
               className="rounded-xl flex-1 border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300"
@@ -4415,9 +4403,9 @@ T002,Prof. Ananya Das,ananya@college.edu,9876543221,Mathematics,ananya@faculty`;
               <Trash2 className="w-4 h-4 mr-1" />
               Delete Students
             </Button>
-            <Button 
-              variant="outline" 
-              size="sm" 
+            <Button
+              variant="outline"
+              size="sm"
               onClick={() => setShowDeleteDialog('faculty')}
               disabled={deleting || stats.faculty === 0}
               className="rounded-xl flex-1 border-purple-200 text-purple-600 hover:bg-purple-50 hover:border-purple-300"
@@ -4425,9 +4413,9 @@ T002,Prof. Ananya Das,ananya@college.edu,9876543221,Mathematics,ananya@faculty`;
               <Trash2 className="w-4 h-4 mr-1" />
               Delete Faculty
             </Button>
-            <Button 
-              variant="outline" 
-              size="sm" 
+            <Button
+              variant="outline"
+              size="sm"
               onClick={() => setShowDeleteDialog('all')}
               disabled={deleting || (stats.students === 0 && stats.faculty === 0)}
               className="rounded-xl flex-1 border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300"
@@ -4436,7 +4424,7 @@ T002,Prof. Ananya Das,ananya@college.edu,9876543221,Mathematics,ananya@faculty`;
               Delete All
             </Button>
           </div>
-          
+
           <p className="text-xs text-red-500 text-center">
             ⚠️ Warning: This action cannot be undone
           </p>
@@ -4454,7 +4442,7 @@ T002,Prof. Ananya Das,ananya@college.edu,9876543221,Mathematics,ananya@faculty`;
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-3 gap-3">
-            <Button 
+            <Button
               variant={resetRole === 'students' ? 'default' : 'outline'}
               size="sm"
               onClick={() => setResetRole('students')}
@@ -4462,7 +4450,7 @@ T002,Prof. Ananya Das,ananya@college.edu,9876543221,Mathematics,ananya@faculty`;
             >
               Students ({stats.students})
             </Button>
-            <Button 
+            <Button
               variant={resetRole === 'faculty' ? 'default' : 'outline'}
               size="sm"
               onClick={() => setResetRole('faculty')}
@@ -4470,7 +4458,7 @@ T002,Prof. Ananya Das,ananya@college.edu,9876543221,Mathematics,ananya@faculty`;
             >
               Faculty ({stats.faculty})
             </Button>
-            <Button 
+            <Button
               variant={resetRole === 'all' ? 'default' : 'outline'}
               size="sm"
               onClick={() => setResetRole('all')}
@@ -4479,7 +4467,7 @@ T002,Prof. Ananya Das,ananya@college.edu,9876543221,Mathematics,ananya@faculty`;
               All ({stats.students + stats.faculty})
             </Button>
           </div>
-          
+
           <div className="flex gap-2">
             <Input
               type="text"
@@ -4488,7 +4476,7 @@ T002,Prof. Ananya Das,ananya@college.edu,9876543221,Mathematics,ananya@faculty`;
               onChange={(e) => setResetPassword(e.target.value)}
               className="rounded-xl h-9 flex-1"
             />
-            <Button 
+            <Button
               size="sm"
               onClick={() => setShowResetDialog(true)}
               disabled={!resetPassword || resetPassword.length < 6 || resetting}
@@ -4498,7 +4486,7 @@ T002,Prof. Ananya Das,ananya@college.edu,9876543221,Mathematics,ananya@faculty`;
               Reset
             </Button>
           </div>
-          
+
           <p className="text-xs text-amber-600 text-center">
             🔑 All selected users will be able to login with the new password
           </p>
@@ -4524,9 +4512,9 @@ T002,Prof. Ananya Das,ananya@college.edu,9876543221,Mathematics,ananya@faculty`;
             </ul>
             <p className="mt-2 text-blue-600">Only creates data for students without existing records</p>
           </div>
-          
+
           <div className="flex gap-2">
-            <Button 
+            <Button
               size="sm"
               onClick={async () => {
                 setImporting(true);
@@ -4559,7 +4547,7 @@ T002,Prof. Ananya Das,ananya@college.edu,9876543221,Mathematics,ananya@faculty`;
               )}
               Generate Data
             </Button>
-            <Button 
+            <Button
               variant="outline"
               size="sm"
               onClick={async () => {
@@ -4590,7 +4578,7 @@ T002,Prof. Ananya Das,ananya@college.edu,9876543221,Mathematics,ananya@faculty`;
               Cleanup Old
             </Button>
           </div>
-          
+
           <p className="text-xs text-blue-600 text-center">
             📊 Data is kept for maximum 2 semesters (use Cleanup to remove older data)
           </p>
@@ -4620,7 +4608,7 @@ T002,Prof. Ananya Das,ananya@college.edu,9876543221,Mathematics,ananya@faculty`;
                     <p className="text-xs text-muted-foreground">Failed</p>
                   </div>
                 </div>
-                
+
                 {importResult.errors.length > 0 && (
                   <div className="max-h-40 overflow-y-auto">
                     <p className="text-xs font-medium mb-2">Errors:</p>
@@ -4652,11 +4640,11 @@ T002,Prof. Ananya Das,ananya@college.edu,9876543221,Mathematics,ananya@faculty`;
               Confirm Delete
             </DialogTitle>
             <DialogDescription>
-              {showDeleteDialog === 'all' 
+              {showDeleteDialog === 'all'
                 ? `This will permanently delete ALL ${stats.students + stats.faculty} records (${stats.students} students and ${stats.faculty} faculty).`
                 : showDeleteDialog === 'students'
-                ? `This will permanently delete ALL ${stats.students} student records.`
-                : `This will permanently delete ALL ${stats.faculty} faculty records.`
+                  ? `This will permanently delete ALL ${stats.students} student records.`
+                  : `This will permanently delete ALL ${stats.faculty} faculty records.`
               }
             </DialogDescription>
           </DialogHeader>
@@ -4668,9 +4656,9 @@ T002,Prof. Ananya Das,ananya@college.edu,9876543221,Mathematics,ananya@faculty`;
             <Button variant="outline" onClick={() => setShowDeleteDialog(null)} className="rounded-xl flex-1">
               Cancel
             </Button>
-            <Button 
-              variant="destructive" 
-              onClick={() => handleDeleteAll(showDeleteDialog!)} 
+            <Button
+              variant="destructive"
+              onClick={() => handleDeleteAll(showDeleteDialog!)}
               disabled={deleting}
               className="rounded-xl flex-1"
             >
@@ -4694,11 +4682,11 @@ T002,Prof. Ananya Das,ananya@college.edu,9876543221,Mathematics,ananya@faculty`;
               Confirm Password Reset
             </DialogTitle>
             <DialogDescription>
-              This will reset passwords for {resetRole === 'all' 
+              This will reset passwords for {resetRole === 'all'
                 ? `ALL ${stats.students + stats.faculty} users`
                 : resetRole === 'students'
-                ? `ALL ${stats.students} students`
-                : `ALL ${stats.faculty} faculty members`
+                  ? `ALL ${stats.students} students`
+                  : `ALL ${stats.faculty} faculty members`
               }.
             </DialogDescription>
           </DialogHeader>
@@ -4710,7 +4698,7 @@ T002,Prof. Ananya Das,ananya@college.edu,9876543221,Mathematics,ananya@faculty`;
             <Button variant="outline" onClick={() => setShowResetDialog(false)} className="rounded-xl flex-1">
               Cancel
             </Button>
-            <Button 
+            <Button
               onClick={handleResetPasswords}
               disabled={resetting}
               className="rounded-xl flex-1 bg-amber-600 hover:bg-amber-700"
@@ -4882,7 +4870,7 @@ function FacultyDashboard() {
             </div>
             <div className="text-2xl font-bold text-red-700 dark:text-red-300">{highRiskCount}</div>
             <div className="mt-2 h-1.5 bg-red-100 dark:bg-red-900 rounded-full overflow-hidden">
-              <div 
+              <div
                 className="h-full bg-gradient-to-r from-red-500 to-rose-500 rounded-full"
                 style={{ width: `${(highRiskCount / totalStudents) * 100}%` }}
               />
@@ -4899,7 +4887,7 @@ function FacultyDashboard() {
             </div>
             <div className="text-2xl font-bold text-amber-700 dark:text-amber-300">{mediumRiskCount}</div>
             <div className="mt-2 h-1.5 bg-amber-100 dark:bg-amber-900 rounded-full overflow-hidden">
-              <div 
+              <div
                 className="h-full bg-gradient-to-r from-amber-500 to-orange-500 rounded-full"
                 style={{ width: `${(mediumRiskCount / totalStudents) * 100}%` }}
               />
@@ -4916,7 +4904,7 @@ function FacultyDashboard() {
             </div>
             <div className="text-2xl font-bold text-emerald-700 dark:text-emerald-300">{lowRiskCount}</div>
             <div className="mt-2 h-1.5 bg-emerald-100 dark:bg-emerald-900 rounded-full overflow-hidden">
-              <div 
+              <div
                 className="h-full bg-gradient-to-r from-emerald-500 to-green-500 rounded-full"
                 style={{ width: `${(lowRiskCount / totalStudents) * 100}%` }}
               />
@@ -4977,8 +4965,8 @@ function FacultyDashboard() {
                 options={{
                   responsive: true,
                   maintainAspectRatio: false,
-                  plugins: { 
-                    legend: { position: 'bottom', labels: { usePointStyle: true, pointStyle: 'circle' } } 
+                  plugins: {
+                    legend: { position: 'bottom', labels: { usePointStyle: true, pointStyle: 'circle' } }
                   },
                 }}
               />
@@ -5204,7 +5192,7 @@ function StudentsPage() {
 
   const filteredStudents = students.filter((student: any) => {
     const matchesSearch = student.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         student.collegeId?.toLowerCase().includes(searchTerm.toLowerCase());
+      student.collegeId?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesBranch = branchFilter === 'all' || student.branch === branchFilter;
     const matchesYear = yearFilter === 'all' || student.year?.toString() === yearFilter;
     const matchesSection = sectionFilter === 'all' || student.section === sectionFilter;
@@ -5252,7 +5240,7 @@ function StudentsPage() {
                     className="pl-9 rounded-xl h-9"
                   />
                 </div>
-                
+
                 {/* Filters Row */}
                 <div className="flex flex-wrap gap-2">
                   {/* Branch Filter */}
@@ -5297,9 +5285,9 @@ function StudentsPage() {
 
                   {/* Clear Filters Button */}
                   {(branchFilter !== 'all' || yearFilter !== 'all' || sectionFilter !== 'all' || searchTerm) && (
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       onClick={() => {
                         setBranchFilter('all');
                         setYearFilter('all');
@@ -5355,8 +5343,8 @@ function StudentsPage() {
                     </tr>
                   ) : (
                     paginatedStudents.map((student: any, idx: number) => (
-                      <tr 
-                        key={student.id} 
+                      <tr
+                        key={student.id}
                         className="border-b last:border-0 hover:bg-slate-50 dark:hover:bg-slate-900/10 cursor-pointer transition-colors"
                         onClick={() => setSelectedStudent(student)}
                       >
@@ -5388,21 +5376,21 @@ function StudentsPage() {
               Click on a row to view student details
             </p>
             <div className="flex items-center gap-1">
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => setCurrentPage(p => Math.max(1, p - 1))} 
-                disabled={currentPage === 1} 
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
                 className="rounded-lg h-8"
               >
                 Prev
               </Button>
               <span className="text-xs px-2">{currentPage}/{totalPages || 1}</span>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} 
-                disabled={currentPage === totalPages || totalPages === 0} 
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages || totalPages === 0}
                 className="rounded-lg h-8"
               >
                 Next
@@ -5514,8 +5502,8 @@ function RiskAnalysisPage() {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                 {highRiskStudents.map((student) => (
-                  <Card 
-                    key={student.id} 
+                  <Card
+                    key={student.id}
                     className="border-2 border-red-200 dark:border-red-900 bg-red-50/50 dark:bg-red-900/10 rounded-xl cursor-pointer hover:shadow-md transition-shadow"
                     onClick={() => setSelectedStudent(student)}
                   >
@@ -5568,8 +5556,8 @@ function RiskAnalysisPage() {
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                 {mediumRiskStudents.map((student) => (
-                  <Card 
-                    key={student.id} 
+                  <Card
+                    key={student.id}
                     className="border border-orange-200 dark:border-orange-900 bg-orange-50/50 dark:bg-orange-900/10 rounded-xl cursor-pointer hover:shadow-md transition-shadow"
                     onClick={() => setSelectedStudent(student)}
                   >
@@ -5686,14 +5674,13 @@ function MessagingPage() {
             ) : (
               messages.map((message) => (
                 <div key={message.id} className="flex items-start gap-3 p-3 rounded-xl bg-gray-50 dark:bg-gray-800/50">
-                  <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
-                    message.messageType === 'warning' ? 'bg-orange-100 dark:bg-orange-900/30' :
+                  <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${message.messageType === 'warning' ? 'bg-orange-100 dark:bg-orange-900/30' :
                     message.messageType === 'alert' ? 'bg-red-100 dark:bg-red-900/30' :
-                    'bg-blue-100 dark:bg-blue-900/30'
-                  }`}>
+                      'bg-blue-100 dark:bg-blue-900/30'
+                    }`}>
                     {message.messageType === 'warning' ? <AlertTriangle className="w-4 h-4 text-orange-600" /> :
-                     message.messageType === 'alert' ? <AlertCircle className="w-4 h-4 text-red-600" /> :
-                     <Bell className="w-4 h-4 text-blue-600" />}
+                      message.messageType === 'alert' ? <AlertCircle className="w-4 h-4 text-red-600" /> :
+                        <Bell className="w-4 h-4 text-blue-600" />}
                   </div>
                   <div className="flex-1 min-w-0">
                     <h4 className="font-medium text-sm">{message.title}</h4>
@@ -5783,7 +5770,7 @@ function ReportsPage() {
       toast.loading('Preparing full database export...');
       const res = await fetch('/api/export');
       const data = await res.json();
-      
+
       if (!data.success) {
         toast.error('Export failed');
         return;
@@ -5972,11 +5959,11 @@ function MainApp() {
           if (data.success && data.users) {
             const mappedStudents = data.users.map((s: any) => ({
               ...s,
-              riskLevel: 'low', // Default if not computed
-              riskScore: 0,
-              attendance: 0,
-              cgpa: 0,
-              totalPoints: 0
+              riskLevel: s.riskLevel || 'low',
+              riskScore: s.riskScore || 0,
+              attendance: s.attendance || 0,
+              cgpa: s.cgpa || 0,
+              totalPoints: s.totalPoints || 0
             }));
             setRiskStudents(mappedStudents);
           }
@@ -6027,19 +6014,18 @@ function MainApp() {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
       {/* Desktop Sidebar */}
       <DesktopSidebar />
-      
+
       {/* Mobile Header */}
       <MobileHeader />
-      
+
       {/* Main Content */}
-      <main className={`pt-16 pb-20 lg:pb-0 transition-all duration-300 ${
-        sidebarCollapsed ? 'lg:pl-[72px]' : 'lg:pl-[240px]'
-      }`}>
+      <main className={`pt-16 pb-20 lg:pb-0 transition-all duration-300 ${sidebarCollapsed ? 'lg:pl-[72px]' : 'lg:pl-[240px]'
+        }`}>
         <div className="p-4 lg:p-6 max-w-6xl mx-auto">
           {renderContent()}
         </div>
       </main>
-      
+
       {/* Mobile Bottom Navigation */}
       <MobileBottomNav />
     </div>
@@ -6109,9 +6095,9 @@ export default function Page() {
   }, [setCourses, setAssignments, setExams, setMarks, setAttendance, setPoints]);
 
   const handleLogin = (loggedInUser: User) => {
-    const userWithLoginTime = { 
-      ...loggedInUser, 
-      loginTime: new Date().toISOString() 
+    const userWithLoginTime = {
+      ...loggedInUser,
+      loginTime: new Date().toISOString()
     };
     setUser(userWithLoginTime);
   };

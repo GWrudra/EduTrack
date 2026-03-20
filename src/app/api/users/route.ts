@@ -12,11 +12,11 @@ export async function GET(request: NextRequest) {
 
     // Build where clause
     const where: any = {};
-    
+
     if (role && role !== 'all') {
       where.role = role;
     }
-    
+
     if (search) {
       where.OR = [
         { collegeId: { contains: search, mode: 'insensitive' } },
@@ -24,11 +24,11 @@ export async function GET(request: NextRequest) {
         { email: { contains: search, mode: 'insensitive' } },
       ];
     }
-    
+
     if (branch) {
       where.branch = branch;
     }
-    
+
     if (department) {
       where.department = department;
     }
@@ -56,6 +56,39 @@ export async function GET(request: NextRequest) {
       ]
     });
 
+    // If role is student or all, fetch risk assessments and merge
+    let usersWithRisk = users;
+    if (!role || role === 'student') {
+      const riskAssessments = await db.riskAssessment.findMany();
+      const attendance = await db.semesterAttendance.findMany({
+        select: { studentId: true, percentage: true }
+      });
+      const records = await db.semesterRecord.findMany({
+        select: { studentId: true, cgpa: true },
+        orderBy: { semester: 'desc' }
+      });
+
+      usersWithRisk = users.map(user => {
+        if (user.role !== 'student') return user;
+
+        const risk = riskAssessments.find(r => r.studentId === user.id);
+        const userAttendance = attendance.filter(a => a.studentId === user.id);
+        const avgAtt = userAttendance.length > 0
+          ? userAttendance.reduce((sum, a) => sum + a.percentage, 0) / userAttendance.length
+          : 0;
+        const latestRecord = records.find(r => r.studentId === user.id);
+
+        return {
+          ...user,
+          riskLevel: risk?.riskLevel || 'low',
+          riskScore: risk?.riskScore || 0,
+          attendance: parseFloat(avgAtt.toFixed(1)),
+          cgpa: latestRecord?.cgpa || 0,
+          factors: risk?.factors || ''
+        };
+      });
+    }
+
     // Get stats
     const totalUsers = await db.user.count();
     const studentCount = await db.user.count({ where: { role: 'student' } });
@@ -64,7 +97,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      users,
+      users: usersWithRisk,
       stats: {
         total: totalUsers,
         students: studentCount,
