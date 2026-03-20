@@ -1,0 +1,266 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String                 @id @default(cuid())
+  collegeId     String                 @unique
+  password      String
+  name          String
+  role          String
+  email         String?
+  phone         String?
+  branch        String?
+  section       String?
+  year          Int?
+  parentEmail   String?
+  parentPhone   String?
+  department    String?
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @updatedAt
+  assignments   AssignmentSubmission[]
+  attendance    AttendanceLog[]
+  courses       CourseEnrollment[]
+  messages      Message[]
+  notifications Notification[]
+  points        PointsLedger[]
+}
+
+model AttendanceLog {
+  id        String   @id @default(cuid())
+  studentId String
+  subject   String
+  status    String
+  date      DateTime
+  createdAt DateTime @default(now())
+  student   User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId, date])
+}
+
+model SemesterAttendance {
+  id           String   @id @default(cuid())
+  studentId    String
+  semester     Int
+  subjectCode  String
+  subjectName  String
+  totalClasses Int      @default(0)
+  attended     Int      @default(0)
+  percentage   Float    @default(0)
+  academicYear String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([studentId, semester, subjectCode])
+  @@index([studentId, semester])
+}
+
+model SemesterRecord {
+  id            String   @id @default(cuid())
+  studentId     String
+  semester      Int
+  sgpa          Float    @default(0)
+  cgpa          Float    @default(0)
+  creditsEarned Int      @default(0)
+  creditsTotal  Int      @default(0)
+  academicYear  String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([studentId, semester])
+  @@index([studentId])
+}
+
+model SubjectMark {
+  id            String   @id @default(cuid())
+  studentId     String
+  semester      Int
+  subjectCode   String
+  subjectName   String
+  credits       Int      @default(3)
+  internalMarks Float    @default(0)
+  externalMarks Float    @default(0)
+  totalMarks    Float    @default(0)
+  grade         String   @default("B")
+  gradePoints   Float    @default(8)
+  academicYear  String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([studentId, semester, subjectCode])
+  @@index([studentId, semester])
+}
+
+model PointsLedger {
+  id             String   @id @default(cuid())
+  studentId      String
+  totalPoints    Float    @default(100)
+  socialPoints   Float    @default(0)
+  academicPoints Float    @default(0)
+  reason         String?
+  change         Float    @default(0)
+  createdAt      DateTime @default(now())
+  student        User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId])
+}
+
+model Course {
+  id          String             @id @default(cuid())
+  name        String
+  code        String             @unique
+  credits     Int
+  instructor  String
+  department  String?
+  semester    Int?
+  dayOfWeek   Int?
+  startTime   String?
+  endTime     String?
+  location    String?
+  weekStart   Int?
+  weekEnd     Int?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  assignments Assignment[]
+  enrollments CourseEnrollment[]
+  exams       Exam[]
+  marks       Mark[]
+}
+
+model CourseEnrollment {
+  id         String   @id @default(cuid())
+  studentId  String
+  courseId   String
+  enrolledAt DateTime @default(now())
+  course     Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  student    User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, courseId])
+}
+
+model Assignment {
+  id          String                 @id @default(cuid())
+  courseId    String
+  title       String
+  description String?
+  dueDate     DateTime
+  maxScore    Float?
+  status      String                 @default("active")
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+  course      Course                 @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  submissions AssignmentSubmission[]
+}
+
+model AssignmentSubmission {
+  id           String     @id @default(cuid())
+  assignmentId String
+  studentId    String
+  submittedAt  DateTime   @default(now())
+  score        Float?
+  feedback     String?
+  status       String     @default("submitted")
+  student      User       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  assignment   Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+
+  @@unique([assignmentId, studentId])
+}
+
+model Exam {
+  id        String   @id @default(cuid())
+  courseId  String
+  title     String
+  examDate  DateTime
+  duration  Int?
+  location  String?
+  examType  String   @default("midterm")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+}
+
+model Mark {
+  id          String   @id @default(cuid())
+  studentId   String
+  courseId    String
+  semester    Int
+  score       Float
+  grade       String?
+  gradePoints Float?
+  createdAt   DateTime @default(now())
+  course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, courseId, semester])
+  @@index([studentId])
+}
+
+model Message {
+  id          String   @id @default(cuid())
+  senderId    String
+  receiverId  String?
+  targetType  String
+  title       String
+  content     String
+  messageType String   @default("warning")
+  isRead      Boolean  @default(false)
+  sentAt      DateTime @default(now())
+  sender      User     @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([receiverId])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  message   String
+  type      String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model RiskAssessment {
+  id           String   @id @default(cuid())
+  studentId    String   @unique
+  riskScore    Float    @default(0)
+  riskLevel    String   @default("low")
+  factors      String?
+  lastAssessed DateTime @default(now())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model DailyQuote {
+  id        String   @id @default(cuid())
+  quote     String
+  author    String?
+  category  String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+model TimetableEntry {
+  id        String   @id @default(cuid())
+  dayOfWeek Int
+  dayName   String
+  section   String
+  startTime String
+  endTime   String
+  subject   String
+  location  String?
+  batch     String?
+  semester  Int?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([section, dayOfWeek])
+  @@index([dayOfWeek])
+}

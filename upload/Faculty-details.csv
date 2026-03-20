@@ -1,0 +1,16 @@
+teacherId,name,department,email,phone
+T001,Dr. Rajesh Sharma,CSE,rajesh.sharma@college.edu,9123456701
+T002,Prof. Ananya Das,CSE,ananya.das@college.edu,9123456702
+T003,Dr. Vikram Patel,ECE,vikram.patel@college.edu,9123456703
+T004,Prof. Sneha Roy,ECE,sneha.roy@college.edu,9123456704
+T005,Dr. Amit Verma,ME,amit.verma@college.edu,9123456705
+T006,Prof. Pooja Singh,ME,pooja.singh@college.edu,9123456706
+T007,Dr. Rahul Nair,CE,rahul.nair@college.edu,9123456707
+T008,Prof. Neha Gupta,CE,neha.gupta@college.edu,9123456708
+T009,Dr. Arjun Kumar,IT,arjun.kumar@college.edu,9123456709
+T010,Prof. Riya Patel,IT,riya.patel@college.edu,9123456710
+T011,Dr. Sandeep Mishra,CSE,sandeep.mishra@college.edu,9123456711
+T012,Prof. Simran Kaur,ECE,simran.kaur@college.edu,9123456712
+T013,Dr. Kunal Agarwal,ME,kunal.agarwal@college.edu,9123456713
+T014,Prof. Tanvi Kapoor,CE,tanvi.kapoor@college.edu,9123456714
+T015,Dr. Abhishek Jain,IT,abhishek.jain@college.edu,9123456715
