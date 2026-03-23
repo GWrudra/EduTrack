@@ -296,19 +296,27 @@ export async function POST(request: NextRequest) {
         let riskScore = 0;
         const factors: string[] = [];
 
-        if (avgAttendance < 75) {
-          riskScore += 40 + (75 - avgAttendance);
-          factors.push('Low Attendance');
+        if (avgAttendance < 70) {
+          riskScore += 20;
+          factors.push('Low Attendance (<70%)');
+          if (avgAttendance < 60) {
+            riskScore += 25;
+            factors.push('Critical Attendance (<60%)');
+          }
         }
-        if (cgpa < 7.0) {
-          riskScore += 30 + (7.5 - cgpa) * 10;
-          factors.push('Low CGPA');
+        if (cgpa < 6.5) {
+          riskScore += 15;
+          factors.push('Low CGPA (<6.5)');
+          if (cgpa < 5.5) {
+            riskScore += 25;
+            factors.push('Critical CGPA (<5.5)');
+          }
         }
-
+        
         riskScore = Math.min(100, Math.max(0, riskScore));
         let riskLevel: 'low' | 'medium' | 'high' = 'low';
-        if (riskScore > 25) riskLevel = 'high';
-        else if (riskScore > 1) riskLevel = 'medium';
+        if (riskScore > 35) riskLevel = 'high';
+        else if (riskScore > 5) riskLevel = 'medium';
 
         await db.riskAssessment.upsert({
           where: { studentId: student.id },

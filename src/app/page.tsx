@@ -310,50 +310,72 @@ function StudentDetailsDialog({ open, onOpenChange, student, onSendWarning, onAl
     }
   };
 
-  const handleSendWarning = () => {
+  const handleSendWarning = async () => {
     if (!warningMessage.trim()) {
       toast.error('Please enter a warning message');
       return;
     }
-    addMessage({
-      id: Date.now().toString(),
-      senderId: user?.id || 'faculty',
-      senderName: user?.name || 'Faculty',
-      receiverId: student.id,
-      targetType: 'student',
-      title: `Warning for ${student.name}`,
-      content: warningMessage,
-      messageType: 'warning',
-      isRead: false,
-      sentAt: new Date(),
-    });
-    toast.success('Warning sent to student');
-    setWarningMessage('');
-    setShowWarningForm(false);
-    onSendWarning?.();
+    
+    try {
+      const res = await fetch('/api/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          senderId: user?.id || 'faculty',
+          receiverId: student.id,
+          targetType: 'student',
+          title: `Warning for ${student.name}`,
+          content: warningMessage,
+          messageType: 'warning',
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        addMessage(data.message);
+        toast.success('Warning sent to student');
+        setWarningMessage('');
+        setShowWarningForm(false);
+        onSendWarning?.();
+      } else {
+        toast.error(data.message || 'Failed to send warning');
+      }
+    } catch {
+      toast.error('Failed to send warning');
+    }
   };
 
-  const handleAlertParent = () => {
+  const handleAlertParent = async () => {
     if (!parentMessage.trim()) {
       toast.error('Please enter a message for parent');
       return;
     }
-    addMessage({
-      id: Date.now().toString(),
-      senderId: user?.id || 'faculty',
-      senderName: user?.name || 'Faculty',
-      receiverId: student.id,
-      targetType: 'parent',
-      title: `Alert regarding ${student.name}`,
-      content: parentMessage,
-      messageType: 'alert',
-      isRead: false,
-      sentAt: new Date(),
-    });
-    toast.success('Parent alerted successfully');
-    setParentMessage('');
-    setShowParentForm(false);
-    onAlertParent?.();
+    
+    try {
+      const res = await fetch('/api/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          senderId: user?.id || 'faculty',
+          receiverId: student.id,
+          targetType: 'parent',
+          title: `Alert regarding ${student.name}`,
+          content: parentMessage,
+          messageType: 'alert',
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        addMessage(data.message);
+        toast.success('Parent alerted successfully');
+        setParentMessage('');
+        setShowParentForm(false);
+        onAlertParent?.();
+      } else {
+        toast.error(data.message || 'Failed to send parent alert');
+      }
+    } catch {
+      toast.error('Failed to send parent alert');
+    }
   };
 
   return (
@@ -404,22 +426,69 @@ function StudentDetailsDialog({ open, onOpenChange, student, onSendWarning, onAl
             </div>
             <div className="p-3 rounded-xl bg-purple-50 dark:bg-purple-900/20 text-center">
               <p className="text-xs text-muted-foreground">CGPA</p>
-              <p className="text-lg font-bold text-purple-600">{student.cgpa.toFixed(2)}</p>
+              <p className="text-lg font-bold text-purple-600">{(student.cgpa ?? 0).toFixed(2)}</p>
             </div>
             <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/20 text-center">
-              <p className="text-xs text-muted-foreground">Points</p>
-              <p className="text-lg font-bold text-slate-600">{student.totalPoints}</p>
+              <p className="text-xs text-muted-foreground">Total Pts</p>
+              <p className="text-lg font-bold text-slate-600">{(student as any).totalPoints ?? 0}<span className="text-xs font-normal text-muted-foreground">/130</span></p>
             </div>
           </div>
 
-          {/* Risk Score */}
-          <div className="p-3 rounded-xl bg-gray-50 dark:bg-gray-800">
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-xs text-muted-foreground">Risk Score</p>
-              <p className="font-bold text-sm">{student.riskScore.toFixed(0)}%</p>
+          {/* Risk Point Breakdown */}
+          <div className="p-3 rounded-xl bg-gray-50 dark:bg-gray-800 space-y-3">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Risk Score Breakdown</p>
+
+            {/* Attendance Points */}
+            <div className="space-y-1">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">Attendance Points</span>
+                <span className="font-semibold text-blue-600">{(student as any).attPoints ?? 0}<span className="text-muted-foreground font-normal">/50</span></span>
+              </div>
+              <Progress value={((student as any).attPoints ?? 0) / 50 * 100} className="h-1.5 bg-blue-100" />
             </div>
-            <Progress value={student.riskScore} className="h-2" />
+
+            {/* CGPA Points */}
+            <div className="space-y-1">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">CGPA Points</span>
+                <span className="font-semibold text-purple-600">{(student as any).cgpaPoints ?? 0}<span className="text-muted-foreground font-normal">/50</span></span>
+              </div>
+              <Progress value={((student as any).cgpaPoints ?? 0) / 50 * 100} className="h-1.5 bg-purple-100" />
+            </div>
+
+            {/* Consistency Points */}
+            <div className="space-y-1">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">Consistency Points</span>
+                <span className="font-semibold text-green-600">{(student as any).consistencyPoints ?? 0}<span className="text-muted-foreground font-normal">/30</span></span>
+              </div>
+              <Progress value={((student as any).consistencyPoints ?? 0) / 30 * 100} className="h-1.5 bg-green-100" />
+            </div>
+
+            {/* Overall Risk Score */}
+            <div className="pt-1 border-t border-gray-200 dark:border-gray-700">
+              <div className="flex items-center justify-between mb-1">
+                <p className="text-xs font-medium">Overall Risk Score</p>
+                <p className="font-bold text-sm">{student.riskScore.toFixed(0)}%</p>
+              </div>
+              <Progress
+                value={student.riskScore}
+                className={`h-2 ${student.riskLevel === 'high' ? 'bg-red-100' : student.riskLevel === 'medium' ? 'bg-orange-100' : 'bg-green-100'}`}
+              />
+              <p className="text-[10px] text-muted-foreground mt-1">Higher score = Lower risk (more points earned)</p>
+            </div>
           </div>
+
+          {/* Risk Factors */}
+          {(student as any).factors && (
+            <div className="p-3 rounded-xl bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/30">
+              <p className="text-xs font-semibold text-red-700 dark:text-red-400 mb-1">Risk Factors</p>
+              {((student as any).factors as string).split(',').filter(Boolean).map((f: string, i: number) => (
+                <p key={i} className="text-xs text-red-600 dark:text-red-400">• {f.trim()}</p>
+              ))}
+            </div>
+          )}
+
 
           {/* Action Buttons */}
           <Separator />
@@ -777,7 +846,6 @@ function DesktopSidebar() {
 
   const facultyMenuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: Home },
-    { id: 'timetable', label: 'Timetable', icon: Calendar },
     { id: 'students', label: 'Students', icon: Users },
     { id: 'attendance', label: 'Attendance', icon: UserCheck },
     { id: 'risk-analysis', label: 'Risk Analysis', icon: AlertTriangle },
@@ -2128,7 +2196,7 @@ function TimetablePage() {
 // ============ ATTENDANCE UPDATE PAGE (Faculty) ============
 
 function AttendanceUpdatePage() {
-  const { courses, dataUpdateCounter } = useAppStore();
+  const { courses, dataUpdateCounter, triggerDataUpdate } = useAppStore();
   const [selectedCourse, setSelectedCourse] = useState('');
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedBranch, setSelectedBranch] = useState('all');
@@ -2200,11 +2268,29 @@ function AttendanceUpdatePage() {
     }
 
     setIsSaving(true);
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    setIsSaving(false);
-    toast.success(`Attendance saved for ${selectedCourse} on ${selectedDate}`);
-    setAttendanceData({});
+    try {
+      const res = await fetch('/api/attendance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          courseId: selectedCourse,
+          date: selectedDate,
+          attendanceData
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success(`Attendance saved for ${selectedCourse} on ${selectedDate}`);
+        setAttendanceData({});
+        triggerDataUpdate();
+      } else {
+        toast.error(data.message || 'Failed to save attendance');
+      }
+    } catch (error) {
+      toast.error('Failed to save attendance');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const getStatusColor = (status?: string) => {
@@ -2222,19 +2308,18 @@ function AttendanceUpdatePage() {
         <h2 className="text-xl font-bold">Update Attendance</h2>
         <p className="text-sm text-muted-foreground">Mark student attendance for classes</p>
       </div>
-
       {/* Selection Filters */}
       <Card className="border-0 shadow-md rounded-2xl">
         <CardContent className="p-4">
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-            <div className="space-y-1.5">
+          <div className="flex flex-wrap gap-3">
+            <div className="space-y-1.5 min-w-[200px] flex-1">
               <Label className="text-xs">Course</Label>
               <Select value={selectedCourse} onValueChange={setSelectedCourse}>
-                <SelectTrigger className="rounded-xl h-9">
+                <SelectTrigger className="rounded-xl h-9 text-sm">
                   <SelectValue placeholder="Select course" />
                 </SelectTrigger>
                 <SelectContent>
-                  {courses.map(course => (
+                  {courses.filter(c => !['LUNCH', 'BREAK'].includes(c.name.toUpperCase())).map(course => (
                     <SelectItem key={course.id} value={course.id}>{course.name}</SelectItem>
                   ))}
                 </SelectContent>
@@ -4738,11 +4823,11 @@ function FacultyDashboard() {
       if (data.success) {
         const studentList = (data.users || []).map((s: any) => ({
           ...s,
-          riskLevel: Math.random() > 0.7 ? 'high' : Math.random() > 0.4 ? 'medium' : 'low',
-          attendance: Math.floor(Math.random() * 40) + 60,
-          cgpa: parseFloat((Math.random() * 3 + 6).toFixed(2)),
-          totalPoints: Math.floor(Math.random() * 100),
-          riskScore: Math.floor(Math.random() * 100),
+          riskLevel: s.riskLevel || 'low',
+          attendance: s.attendance || 0,
+          cgpa: s.cgpa || 0,
+          totalPoints: s.totalPoints || 0,
+          riskScore: s.riskScore || 0,
         }));
         setStudents(studentList);
         setRiskStudents(studentList);
@@ -4765,50 +4850,72 @@ function FacultyDashboard() {
 
   const highRiskStudents = students.filter(s => s.riskLevel === 'high');
 
-  const handleQuickWarning = () => {
+  const handleQuickWarning = async () => {
     if (!warningData.studentId || !warningData.message) {
       toast.error('Please select a student and enter a message');
       return;
     }
     const student = students.find(s => s.id === warningData.studentId);
-    addMessage({
-      id: Date.now().toString(),
-      senderId: user?.id || 'faculty',
-      senderName: user?.name || 'Faculty',
-      receiverId: warningData.studentId,
-      targetType: 'student',
-      title: `Warning for ${student?.name || 'Student'}`,
-      content: warningData.message,
-      messageType: 'warning',
-      isRead: false,
-      sentAt: new Date(),
-    });
-    toast.success('Warning sent successfully');
-    setShowQuickWarning(false);
-    setWarningData({ studentId: '', message: '' });
+    
+    try {
+      const res = await fetch('/api/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          senderId: user?.id || 'faculty',
+          receiverId: warningData.studentId,
+          targetType: 'student',
+          title: `Warning for ${student?.name || 'Student'}`,
+          content: warningData.message,
+          messageType: 'warning',
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        addMessage(data.message);
+        toast.success('Warning sent successfully');
+        setShowQuickWarning(false);
+        setWarningData({ studentId: '', message: '' });
+      } else {
+        toast.error(data.message || 'Failed to send warning');
+      }
+    } catch {
+      toast.error('Failed to send warning');
+    }
   };
 
-  const handleQuickAlert = () => {
+  const handleQuickAlert = async () => {
     if (!alertData.studentId || !alertData.message) {
       toast.error('Please select a student and enter a message');
       return;
     }
     const student = students.find(s => s.id === alertData.studentId);
-    addMessage({
-      id: Date.now().toString(),
-      senderId: user?.id || 'faculty',
-      senderName: user?.name || 'Faculty',
-      receiverId: alertData.studentId,
-      targetType: 'parent',
-      title: `Alert regarding ${student?.name || 'Student'}`,
-      content: alertData.message,
-      messageType: 'alert',
-      isRead: false,
-      sentAt: new Date(),
-    });
-    toast.success('Parent alerted successfully');
-    setShowQuickAlert(false);
-    setAlertData({ studentId: '', message: '' });
+    
+    try {
+      const res = await fetch('/api/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          senderId: user?.id || 'faculty',
+          receiverId: alertData.studentId,
+          targetType: 'parent',
+          title: `Alert regarding ${student?.name || 'Student'}`,
+          content: alertData.message,
+          messageType: 'alert',
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        addMessage(data.message);
+        toast.success('Parent alerted successfully');
+        setShowQuickAlert(false);
+        setAlertData({ studentId: '', message: '' });
+      } else {
+        toast.error(data.message || 'Failed to alert parent');
+      }
+    } catch {
+      toast.error('Failed to alert parent');
+    }
   };
 
   const handleGenerateReport = () => {
@@ -5522,19 +5629,29 @@ function RiskAnalysisPage() {
                         </div>
                         <Badge className="bg-red-500 text-[10px] rounded-lg">High</Badge>
                       </div>
-                      <div className="grid grid-cols-2 gap-1 text-[10px] text-muted-foreground">
-                        <div>Att: {student.attendance}%</div>
-                        <div>CGPA: {student.cgpa.toFixed(2)}</div>
+                      <div className="grid grid-cols-3 gap-1 text-[10px] text-center mt-2">
+                        <div className="bg-blue-100 dark:bg-blue-900/30 rounded p-1">
+                          <div className="font-semibold text-blue-700">{(student as any).attPoints ?? 0}</div>
+                          <div className="text-muted-foreground">Att</div>
+                        </div>
+                        <div className="bg-purple-100 dark:bg-purple-900/30 rounded p-1">
+                          <div className="font-semibold text-purple-700">{(student as any).cgpaPoints ?? 0}</div>
+                          <div className="text-muted-foreground">CGPA</div>
+                        </div>
+                        <div className="bg-green-100 dark:bg-green-900/30 rounded p-1">
+                          <div className="font-semibold text-green-700">{(student as any).consistencyPoints ?? 0}</div>
+                          <div className="text-muted-foreground">Cons</div>
+                        </div>
                       </div>
                       <div className="mt-2">
                         <div className="flex items-center justify-between text-[10px] mb-0.5">
-                          <span>Risk Score</span>
+                          <span>Score {(student as any).totalPoints ?? 0}/130</span>
                           <span className="font-medium text-red-600">{student.riskScore.toFixed(0)}%</span>
                         </div>
                         <Progress value={student.riskScore} className="h-1 bg-red-100" />
                       </div>
                       <div className="mt-2 pt-2 border-t border-red-200 dark:border-red-900">
-                        <p className="text-[10px] text-muted-foreground text-center">Click to view details & send warning</p>
+                        <p className="text-[10px] text-muted-foreground text-center">Click to view details &amp; send warning</p>
                       </div>
                     </CardContent>
                   </Card>
@@ -5576,9 +5693,26 @@ function RiskAnalysisPage() {
                         </div>
                         <Badge className={`${getRiskColor(student.riskLevel)} text-[10px] rounded-lg`}>Medium</Badge>
                       </div>
-                      <div className="grid grid-cols-2 gap-1 text-[10px] text-muted-foreground">
-                        <div>Att: {student.attendance}%</div>
-                        <div>CGPA: {student.cgpa.toFixed(2)}</div>
+                      <div className="grid grid-cols-3 gap-1 text-[10px] text-center mt-2">
+                        <div className="bg-blue-100 dark:bg-blue-900/30 rounded p-1">
+                          <div className="font-semibold text-blue-700">{(student as any).attPoints ?? 0}</div>
+                          <div className="text-muted-foreground">Att</div>
+                        </div>
+                        <div className="bg-purple-100 dark:bg-purple-900/30 rounded p-1">
+                          <div className="font-semibold text-purple-700">{(student as any).cgpaPoints ?? 0}</div>
+                          <div className="text-muted-foreground">CGPA</div>
+                        </div>
+                        <div className="bg-green-100 dark:bg-green-900/30 rounded p-1">
+                          <div className="font-semibold text-green-700">{(student as any).consistencyPoints ?? 0}</div>
+                          <div className="text-muted-foreground">Cons</div>
+                        </div>
+                      </div>
+                      <div className="mt-1">
+                        <div className="flex items-center justify-between text-[10px] mb-0.5">
+                          <span>Score {(student as any).totalPoints ?? 0}/130</span>
+                          <span className="font-medium text-orange-600">{student.riskScore.toFixed(0)}%</span>
+                        </div>
+                        <Progress value={student.riskScore} className="h-1 bg-orange-100" />
                       </div>
                     </CardContent>
                   </Card>
@@ -5611,6 +5745,7 @@ function MessagingPage() {
     messageType: 'warning' as 'warning' | 'alert' | 'info',
     selectedStudentId: '',
   });
+  const [searchTerm, setSearchTerm] = useState('');
 
   // Fetch students from database
   useEffect(() => {
@@ -5628,23 +5763,33 @@ function MessagingPage() {
     fetchStudents();
   }, []);
 
-  const handleSendMessage = (e: React.FormEvent) => {
+  const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    addMessage({
-      id: Date.now().toString(),
-      senderId: user?.id || 'faculty',
-      senderName: user?.name || 'Faculty',
-      receiverId: composeData.selectedStudentId || undefined,
-      targetType: composeData.targetType,
-      title: composeData.title,
-      content: composeData.content,
-      messageType: composeData.messageType,
-      isRead: false,
-      sentAt: new Date(),
-    });
-    toast.success('Message sent');
-    setIsComposeOpen(false);
-    setComposeData({ title: '', content: '', targetType: 'student', messageType: 'warning', selectedStudentId: '' });
+    try {
+      const res = await fetch('/api/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          senderId: user?.id || 'faculty',
+          receiverId: composeData.selectedStudentId === 'all' ? undefined : composeData.selectedStudentId,
+          targetType: composeData.targetType,
+          title: composeData.title,
+          content: composeData.content,
+          messageType: composeData.messageType,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        addMessage(data.message);
+        toast.success('Message sent');
+        setIsComposeOpen(false);
+        setComposeData({ title: '', content: '', targetType: 'student', messageType: 'warning', selectedStudentId: '' });
+      } else {
+        toast.error(data.message || 'Failed to send message');
+      }
+    } catch {
+      toast.error('Failed to send message');
+    }
   };
 
   return (
@@ -5708,8 +5853,21 @@ function MessagingPage() {
                   <SelectValue placeholder="Select a student (or leave empty for all)" />
                 </SelectTrigger>
                 <SelectContent>
+                  <div className="p-2">
+                    <Input
+                      placeholder="Search Roll No or Name..."
+                      className="h-8 text-xs rounded-lg mb-2"
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                  </div>
                   <SelectItem value="all">All Students</SelectItem>
-                  {students.map((student) => (
+                  {students
+                    .filter(s =>
+                      s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                      s.collegeId.toLowerCase().includes(searchTerm.toLowerCase())
+                    )
+                    .map((student) => (
                     <SelectItem key={student.id} value={student.id}>
                       {student.name} ({student.collegeId}){student.branch ? ` - ${student.branch}` : ''}
                     </SelectItem>
@@ -5763,7 +5921,65 @@ function MessagingPage() {
 // ============ REPORTS PAGE (Faculty) ============
 
 function ReportsPage() {
-  const { riskStudents } = useAppStore();
+  const { riskStudents, user } = useAppStore();
+
+  const handleExportRiskReport = () => {
+    const highRisk = riskStudents.filter(s => s.riskLevel === 'high');
+    if (highRisk.length === 0) {
+      toast.error('No high-risk students to report');
+      return;
+    }
+    const headers = ['ID', 'Name', 'Branch', 'Risk Score', 'Attendance', 'CGPA'];
+    const rows = highRisk.map(s => [
+      s.collegeId, s.name, s.branch || '-', `${s.riskScore}%`, `${s.attendance}%`, s.cgpa.toString()
+    ]);
+    const csvContent = [headers.join(','), ...rows.map(r => r.map(v => `"${v}"`).join(','))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `high-risk-report-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success('Risk Report exported');
+  };
+
+  const handleExportAnalytics = () => {
+    if (riskStudents.length === 0) {
+      toast.error('No analytics data available');
+      return;
+    }
+    const total = riskStudents.length;
+    const high = riskStudents.filter(s => s.riskLevel === 'high').length;
+    const medium = riskStudents.filter(s => s.riskLevel === 'medium').length;
+    const low = riskStudents.filter(s => s.riskLevel === 'low').length;
+    const avgAtt = (riskStudents.reduce((sum, s) => sum + s.attendance, 0) / total).toFixed(1);
+    const avgCgpa = (riskStudents.reduce((sum, s) => sum + s.cgpa, 0) / total).toFixed(2);
+
+    const content = `EduTrack Analytics Report
+Date: ${new Date().toLocaleDateString()}
+-------------------------
+Total Students: ${total}
+
+Risk Distribution:
+- High Risk: ${high} (${((high/total)*100).toFixed(1)}%)
+- Medium Risk: ${medium} (${((medium/total)*100).toFixed(1)}%)
+- Low Risk: ${low} (${((low/total)*100).toFixed(1)}%)
+
+Academic Averages:
+- Average Attendance: ${avgAtt}%
+- Average CGPA: ${avgCgpa}
+`;
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `analytics-summary-${new Date().toISOString().split('T')[0]}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success('Analytics exported');
+  };
+
 
   const handleExportFullJSON = async () => {
     try {
@@ -5832,19 +6048,21 @@ function ReportsPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-        <Card className="border-0 shadow-md rounded-2xl hover:shadow-lg transition-shadow cursor-pointer" onClick={handleExportCSV}>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-900/30 flex items-center justify-center">
-                <FileText className="w-5 h-5 text-slate-600" />
+        {user?.role !== 'admin' && (
+          <Card className="border-0 shadow-md rounded-2xl hover:shadow-lg transition-shadow cursor-pointer" onClick={handleExportCSV}>
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-900/30 flex items-center justify-center">
+                  <FileText className="w-5 h-5 text-slate-600" />
+                </div>
+                <div>
+                  <h3 className="font-medium text-sm">Student CSV</h3>
+                  <p className="text-xs text-muted-foreground">Export as spreadsheet</p>
+                </div>
               </div>
-              <div>
-                <h3 className="font-medium text-sm">Student CSV</h3>
-                <p className="text-xs text-muted-foreground">Export as spreadsheet</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
 
         <Card className="border-0 shadow-md rounded-2xl hover:shadow-lg transition-shadow cursor-pointer" onClick={handleExportFullJSON}>
           <CardContent className="p-4">
@@ -5860,64 +6078,70 @@ function ReportsPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-0 shadow-md rounded-2xl hover:shadow-lg transition-shadow cursor-pointer">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
-                <AlertTriangle className="w-5 h-5 text-red-600" />
-              </div>
-              <div>
-                <h3 className="font-medium text-sm">Risk Report</h3>
-                <p className="text-xs text-muted-foreground">High-risk students only</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        {user?.role !== 'admin' && (
+          <>
+            <Card className="border-0 shadow-md rounded-2xl hover:shadow-lg transition-shadow cursor-pointer" onClick={handleExportRiskReport}>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+                    <AlertTriangle className="w-5 h-5 text-red-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-medium text-sm">Risk Report</h3>
+                    <p className="text-xs text-muted-foreground">High-risk students only</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
 
-        <Card className="border-0 shadow-md rounded-2xl hover:shadow-lg transition-shadow cursor-pointer">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-                <BarChart3 className="w-5 h-5 text-blue-600" />
-              </div>
-              <div>
-                <h3 className="font-medium text-sm">Analytics</h3>
-                <p className="text-xs text-muted-foreground">Statistics</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            <Card className="border-0 shadow-md rounded-2xl hover:shadow-lg transition-shadow cursor-pointer" onClick={handleExportAnalytics}>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                    <BarChart3 className="w-5 h-5 text-blue-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-medium text-sm">Analytics</h3>
+                    <p className="text-xs text-muted-foreground">Statistics summary text</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </>
+        )}
       </div>
 
-      <Card className="border-0 shadow-md rounded-2xl">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-semibold">Summary</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-            <div>
-              <p className="text-2xl font-bold">{riskStudents.length}</p>
-              <p className="text-xs text-muted-foreground">Total</p>
+      {user?.role !== 'admin' && (
+        <Card className="border-0 shadow-md rounded-2xl">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-semibold">Summary</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+              <div>
+                <p className="text-2xl font-bold">{riskStudents.length}</p>
+                <p className="text-xs text-muted-foreground">Total</p>
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-red-600">{riskStudents.filter(s => s.riskLevel === 'high').length}</p>
+                <p className="text-xs text-muted-foreground">High Risk</p>
+              </div>
+              <div>
+                <p className="text-2xl font-bold">
+                  {(riskStudents.reduce((sum, s) => sum + s.attendance, 0) / (riskStudents.length || 1)).toFixed(0)}%
+                </p>
+                <p className="text-xs text-muted-foreground">Avg Att</p>
+              </div>
+              <div>
+                <p className="text-2xl font-bold">
+                  {(riskStudents.reduce((sum, s) => sum + s.cgpa, 0) / (riskStudents.length || 1)).toFixed(2)}
+                </p>
+                <p className="text-xs text-muted-foreground">Avg CGPA</p>
+              </div>
             </div>
-            <div>
-              <p className="text-2xl font-bold text-red-600">{riskStudents.filter(s => s.riskLevel === 'high').length}</p>
-              <p className="text-xs text-muted-foreground">High Risk</p>
-            </div>
-            <div>
-              <p className="text-2xl font-bold">
-                {(riskStudents.reduce((sum, s) => sum + s.attendance, 0) / riskStudents.length || 0).toFixed(0)}%
-              </p>
-              <p className="text-xs text-muted-foreground">Avg Att</p>
-            </div>
-            <div>
-              <p className="text-2xl font-bold">
-                {(riskStudents.reduce((sum, s) => sum + s.cgpa, 0) / riskStudents.length || 0).toFixed(2)}
-              </p>
-              <p className="text-xs text-muted-foreground">Avg CGPA</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
@@ -5998,7 +6222,6 @@ function MainApp() {
     } else {
       switch (activeTab) {
         case 'dashboard': return <FacultyDashboard />;
-        case 'timetable': return <TimetablePage />;
         case 'students': return <StudentsPage />;
         case 'attendance': return <AttendanceUpdatePage />;
         case 'risk-analysis': return <RiskAnalysisPage />;

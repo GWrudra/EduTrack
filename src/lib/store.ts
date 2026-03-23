@@ -119,16 +119,16 @@ interface AppState {
   user: User | null;
   isAuthenticated: boolean;
   token: string | null;
-  
+
   // UI State
   activeTab: string;
   sidebarOpen: boolean;
   sidebarCollapsed: boolean;
   theme: 'light' | 'dark';
-  
+
   // Data refresh tracking - using a counter for reliable updates
   dataUpdateCounter: number;
-  
+
   // Data
   courses: Course[];
   assignments: Assignment[];
@@ -139,7 +139,7 @@ interface AppState {
   riskStudents: StudentRiskInfo[];
   messages: Message[];
   dailyQuote: DailyQuote;
-  
+
   // Actions
   setUser: (user: User | null) => void;
   setToken: (token: string | null) => void;
@@ -166,6 +166,7 @@ interface AppState {
   setRiskStudents: (students: StudentRiskInfo[]) => void;
   setMessages: (messages: Message[]) => void;
   addMessage: (message: Message) => void;
+  fetchMessages: () => Promise<void>;
   setDailyQuote: (quote: DailyQuote) => void;
   exportData: () => string;
   importData: (data: string) => boolean;
@@ -196,14 +197,14 @@ export const useAppStore = create<AppState>()(
       user: null,
       isAuthenticated: false,
       token: null,
-      
+
       // UI State
       activeTab: 'dashboard',
       sidebarOpen: true,
       sidebarCollapsed: false,
       theme: 'light',
       dataUpdateCounter: 0,
-      
+
       // Data
       courses: [],
       assignments: [],
@@ -214,7 +215,7 @@ export const useAppStore = create<AppState>()(
       riskStudents: [],
       messages: [],
       dailyQuote: getRandomQuote(),
-      
+
       // Actions
       setUser: (user) => set({ user, isAuthenticated: !!user }),
       setToken: (token) => set({ token }),
@@ -248,7 +249,20 @@ export const useAppStore = create<AppState>()(
       setPoints: (points) => set({ points }),
       setRiskStudents: (riskStudents) => set({ riskStudents }),
       setMessages: (messages) => set({ messages }),
-      addMessage: (message) => set((state) => ({ messages: [...state.messages, message] })),
+      addMessage: (message) => set((state) => ({ messages: [message, ...state.messages] })),
+      fetchMessages: async () => {
+        const { user } = get();
+        if (!user) return;
+        try {
+          const res = await fetch(`/api/messages?userId=${user.id}`);
+          const data = await res.json();
+          if (data.success) {
+            set({ messages: data.messages });
+          }
+        } catch (error) {
+          console.error('Failed to fetch messages:', error);
+        }
+      },
       setDailyQuote: (dailyQuote) => set({ dailyQuote }),
       exportData: () => {
         const state = get();
