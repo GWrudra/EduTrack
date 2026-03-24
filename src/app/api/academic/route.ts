@@ -169,6 +169,10 @@ export async function POST(request: NextRequest) {
       // Generate records for current and previous semester only (max 2 semesters)
       const semestersToGenerate = [previousSem, currentSem].filter(sem => sem > 0 && branchSubjects[sem]);
 
+      // Track aggregate stats across all semesters for this student
+      let latestCgpa = 0;
+      const allAttendancePercentages: number[] = [];
+
       for (const semester of semestersToGenerate) {
         const subjects = branchSubjects[semester];
         if (!subjects) continue;
@@ -179,6 +183,9 @@ export async function POST(request: NextRequest) {
         const cgpa = semester === currentSem
           ? parseFloat(((previousCGPA * (semester - 1) + sgpa) / semester).toFixed(2))
           : sgpa;
+
+        // Keep track of the latest (cumulative) CGPA
+        latestCgpa = cgpa;
 
         await db.semesterRecord.upsert({
           where: {
@@ -205,12 +212,11 @@ export async function POST(request: NextRequest) {
         });
 
         // Generate attendance for each subject
-        const attendancePercentages: number[] = [];
         for (const subject of subjects) {
           const totalClasses = 14 + Math.floor(Math.random() * 7); // 14-20 classes
           const attended = Math.floor(totalClasses * (0.6 + Math.random() * 0.35)); // 60-95% attendance
           const percentage = parseFloat(((attended / totalClasses) * 100).toFixed(1));
-          attendancePercentages.push(percentage);
+          allAttendancePercentages.push(percentage);
 
           await db.semesterAttendance.upsert({
             where: {
@@ -240,7 +246,7 @@ export async function POST(request: NextRequest) {
 
           // Generate subject marks
           const internalMarks = parseFloat((15 + Math.random() * 15).toFixed(1)); // 15-30 out of 30
-          const externalMarks = parseFloat((25 + Math.random() * 45).toFixed(1)); // 25-70 out of 70 (made it lower to trigger some failures)
+          const externalMarks = parseFloat((25 + Math.random() * 45).toFixed(1)); // 25-70 out of 70
           const totalMarks = parseFloat((internalMarks + externalMarks).toFixed(1));
 
           let grade = 'F';
@@ -287,75 +293,76 @@ export async function POST(request: NextRequest) {
 
           recordsCreated++;
         }
+      } // END of semester loop
 
-        // Generate Risk Assessment for the student
-        const avgAttendance = attendancePercentages.length > 0
-          ? attendancePercentages.reduce((sum, val) => sum + val, 0) / attendancePercentages.length
-          : 0;
+      // === AGGREGATE CALCULATIONS (once per student, OUTSIDE semester loop) ===
+      const overallAvgAttendance = allAttendancePercentages.length > 0
+        ? allAttendancePercentages.reduce((sum, val) => sum + val, 0) / allAttendancePercentages.length
+        : 0;
 
-        let riskScore = 0;
-        const factors: string[] = [];
+      // Risk Assessment
+      let riskScore = 0;
+      const factors: string[] = [];
 
-        if (avgAttendance < 70) {
-          riskScore += 20;
-          factors.push('Low Attendance (<70%)');
-          if (avgAttendance < 60) {
-            riskScore += 25;
-            factors.push('Critical Attendance (<60%)');
-          }
+      if (overallAvgAttendance < 70) {
+        riskScore += 20;
+        factors.push('Low Attendance (<70%)');
+        if (overallAvgAttendance < 60) {
+          riskScore += 25;
+          factors.push('Critical Attendance (<60%)');
         }
-        if (cgpa < 6.5) {
-          riskScore += 15;
-          factors.push('Low CGPA (<6.5)');
-          if (cgpa < 5.5) {
-            riskScore += 25;
-            factors.push('Critical CGPA (<5.5)');
-          }
-        }
-        
-        riskScore = Math.min(100, Math.max(0, riskScore));
-        let riskLevel: 'low' | 'medium' | 'high' = 'low';
-        if (riskScore > 35) riskLevel = 'high';
-        else if (riskScore > 5) riskLevel = 'medium';
-
-        await db.riskAssessment.upsert({
-          where: { studentId: student.id },
-          create: {
-            studentId: student.id,
-            riskScore,
-            riskLevel,
-            factors: factors.join(', '),
-          },
-          update: {
-            riskScore,
-            riskLevel,
-            factors: factors.join(', '),
-          }
-        });
-
-        // Initialize Activity Points (Deterministic calculation from real performance)
-        const academicPts = Math.floor(cgpa * 25);
-        const socialPts = Math.floor(avgAttendance * 0.4);
-        const totalPts = academicPts + socialPts;
-
-        await db.pointsLedger.upsert({
-          where: { id: `initial-points-${student.id}` },
-          create: {
-            id: `initial-points-${student.id}`,
-            studentId: student.id,
-            totalPoints: totalPts,
-            socialPoints: socialPts,
-            academicPoints: academicPts,
-            reason: 'Academic Data Synchronization',
-            change: totalPts,
-          },
-          update: {
-            totalPoints: totalPts,
-            socialPoints: socialPts,
-            academicPoints: academicPts,
-          }
-        });
       }
+      if (latestCgpa < 6.5) {
+        riskScore += 15;
+        factors.push('Low CGPA (<6.5)');
+        if (latestCgpa < 5.5) {
+          riskScore += 25;
+          factors.push('Critical CGPA (<5.5)');
+        }
+      }
+      
+      riskScore = Math.min(100, Math.max(0, riskScore));
+      let riskLevel: 'low' | 'medium' | 'high' = 'low';
+      if (riskScore > 35) riskLevel = 'high';
+      else if (riskScore > 5) riskLevel = 'medium';
+
+      await db.riskAssessment.upsert({
+        where: { studentId: student.id },
+        create: {
+          studentId: student.id,
+          riskScore,
+          riskLevel,
+          factors: factors.join(', '),
+        },
+        update: {
+          riskScore,
+          riskLevel,
+          factors: factors.join(', '),
+        }
+      });
+
+      // Activity Points (Deterministic: CGPA * 25 + Attendance * 0.4)
+      const academicPts = Math.floor(latestCgpa * 25);
+      const socialPts = Math.floor(overallAvgAttendance * 0.4);
+      const totalPts = academicPts + socialPts;
+
+      await db.pointsLedger.upsert({
+        where: { id: `initial-points-${student.id}` },
+        create: {
+          id: `initial-points-${student.id}`,
+          studentId: student.id,
+          totalPoints: totalPts,
+          socialPoints: socialPts,
+          academicPoints: academicPts,
+          reason: 'Academic Data Synchronization',
+          change: totalPts,
+        },
+        update: {
+          totalPoints: totalPts,
+          socialPoints: socialPts,
+          academicPoints: academicPts,
+        }
+      });
     }
 
     return NextResponse.json({
@@ -409,19 +416,12 @@ export async function GET(request: NextRequest) {
       orderBy: [{ semester: 'desc' }, { subjectCode: 'asc' }],
     });
 
-    const points = await db.pointsLedger.findFirst({
-      where: { studentId },
-      orderBy: { createdAt: 'desc' },
-    });
-
     // Filter by semester if provided
     if (semester && semester !== 'all') {
       const semNum = parseInt(semester);
       attendanceRecords = attendanceRecords.filter(r => r.semester === semNum);
       subjectMarks = subjectMarks.filter(r => r.semester === semNum);
       semesterRecords = semesterRecords.filter(r => r.semester === semNum);
-    } else {
-      // Show all data by default
     }
 
     // Calculate overall stats
@@ -434,13 +434,22 @@ export async function GET(request: NextRequest) {
     const totalAttended = attendanceRecords.reduce((sum, r) => sum + r.attended, 0);
     const overallAttendance = totalClasses > 0 ? parseFloat(((totalAttended / totalClasses) * 100).toFixed(1)) : 0;
 
+    // Calculate points dynamically from real data (no DB lookup needed)
+    const academicPoints = Math.floor(currentCGPA * 25);
+    const socialPoints = Math.floor(overallAttendance * 0.4);
+    const totalPoints = academicPoints + socialPoints;
+
     return NextResponse.json({
       success: true,
       data: {
         semesterRecords,
         attendanceRecords,
         subjectMarks,
-        points,
+        points: {
+          totalPoints,
+          academicPoints,
+          socialPoints,
+        },
         stats: {
           currentCGPA,
           currentSGPA,

@@ -2034,6 +2034,33 @@ function TimetablePage() {
     }
   }, [user]);
 
+  // Calculate the student's current semester from their year field
+  const getStudentSemester = () => {
+    if (user?.role !== 'student' || !user?.year) return null;
+    let academicYear = user.year;
+    // If year looks like an admission year (e.g. 2023), convert to academic year
+    if (academicYear > 100) {
+      const currentDate = new Date();
+      const currentYear = currentDate.getFullYear();
+      const currentMonth = currentDate.getMonth(); // 0=Jan
+      // Academic year starts in July/August
+      // If we're in Jan-June, the student has completed (currentYear - admissionYear - 1) full years
+      // If we're in Jul-Dec, they've completed (currentYear - admissionYear) full years
+      if (currentMonth >= 6) { // Jul-Dec (odd semester)
+        academicYear = currentYear - user.year + 1;
+      } else { // Jan-June (even semester)
+        academicYear = currentYear - user.year;
+      }
+      if (academicYear < 1) academicYear = 1;
+      if (academicYear > 4) academicYear = 4;
+    }
+    const month = new Date().getMonth();
+    const isEvenSem = month >= 0 && month <= 5; // Jan-June = even semester
+    return isEvenSem ? academicYear * 2 : academicYear * 2 - 1;
+  };
+
+  const studentSemester = getStudentSemester();
+
   // Fetch fully parsed DB timetable on load and sync
   useEffect(() => {
     const fetchTimetable = async () => {
@@ -2042,7 +2069,16 @@ function TimetablePage() {
         const res = await fetch('/api/timetable');
         const data = await res.json();
         if (data.success && data.entries) {
-          setDbTimetable(data.entries);
+          let entries = data.entries;
+          // For students, filter by their current semester
+          if (studentSemester && user?.role === 'student') {
+            const semFiltered = entries.filter((e: any) => e.semester === studentSemester);
+            // Only apply filter if there are matching entries (fallback to all if no match)
+            if (semFiltered.length > 0) {
+              entries = semFiltered;
+            }
+          }
+          setDbTimetable(entries);
         }
       } catch (error) {
         console.error('Failed to fetch timetable:', error);
@@ -2051,7 +2087,7 @@ function TimetablePage() {
       }
     };
     fetchTimetable();
-  }, [dataUpdateCounter]);
+  }, [dataUpdateCounter, studentSemester, user?.role]);
 
   const days = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
   const timeSlots = [
@@ -2128,7 +2164,7 @@ function TimetablePage() {
             {user?.role === 'faculty' ? 'Teaching Schedule' : 'Class Timetable'}
           </h2>
           <p className="text-sm text-muted-foreground">
-            B.Tech {getBatchFromId(user?.collegeId)} Batch (Active Session)
+            B.Tech {getBatchFromId(user?.collegeId)} Batch{studentSemester ? ` • ${getOrdinal(studentSemester)} Semester` : ''} (Active Session)
           </p>
         </div>
       </div>
