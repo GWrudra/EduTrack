@@ -20,9 +20,52 @@ import {
   Menu, X, Bell, ChevronRight, Upload, FileText, Users, AlertTriangle,
   Clock, MapPin, Plus, Trash2, Edit, CheckCircle2, Circle, RefreshCw,
   TrendingUp, Award, Target, MessageSquare, Send, Download,
-  Sun, Moon, Search, Eye, Phone, Home, Database,
+  Sun, Moon, Search, Eye, Phone, Home, Database, Lock, RotateCcw,
   GraduationCap, UserCheck, AlertCircle, ChevronLeft, LayoutDashboard, Mail, Key
 } from 'lucide-react';
+
+// ============ UTILITIES ============
+
+const getRoleColor = (role: string) => {
+  switch (role) {
+    case 'admin': return 'bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-400 border-red-200';
+    case 'faculty': return 'bg-purple-100 text-purple-600 dark:bg-purple-900/40 dark:text-purple-400 border-purple-200';
+    case 'student': return 'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-400 border-blue-200';
+    default: return 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border-slate-200';
+  }
+};
+const getOrdinal = (n: number) => {
+  const s = ["th", "st", "nd", "rd"];
+  const v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+};
+
+// Map Academic Year (1-4) to a Semester (1-8) based on current month
+const getActiveSemester = (year: number | undefined) => {
+  if (!year) return null;
+  const month = new Date().getMonth(); // 0 is Jan, 2 is Mar
+  const isEvenSemester = month >= 0 && month <= 5; // Jan to June
+  
+  if (isEvenSemester) {
+    return year * 2;
+  } else {
+    return year * 2 - 1;
+  }
+};
+
+const getBatchFromId = (id: string | undefined) => {
+  if (!id) return '2024';
+  if (id.includes('-')) {
+    const parts = id.split('-');
+    return parts.length > 2 ? parts[2] : parts[0];
+  }
+  // If it's pure numeric like 20254210, first 4 digits are usually the year
+  if (/^\d+$/.test(id) && id.length >= 4) {
+    return id.substring(0, 4);
+  }
+  return '2024';
+};
+
 import { toast } from 'sonner';
 import {
   Chart as ChartJS,
@@ -127,12 +170,6 @@ function LoginPage({ onLogin }: { onLogin: (user: User) => void }) {
           )}
 
           <Separator className="my-4" />
-          <div className="text-center text-sm text-muted-foreground bg-gray-50 dark:bg-gray-800 rounded-xl p-3">
-            <p className="font-medium mb-1">Demo Credentials:</p>
-            <p>Admin: <span className="font-mono">ADMIN</span> / <span className="font-mono">admin123</span></p>
-            <p>Student: <span className="font-mono">CSE001</span> / <span className="font-mono">password123</span></p>
-            <p>Faculty: <span className="font-mono">T001</span> / <span className="font-mono">password123</span></p>
-          </div>
         </CardContent>
       </Card>
     </div>
@@ -315,7 +352,7 @@ function StudentDetailsDialog({ open, onOpenChange, student, onSendWarning, onAl
       toast.error('Please enter a warning message');
       return;
     }
-    
+
     try {
       const res = await fetch('/api/messages', {
         method: 'POST',
@@ -349,7 +386,7 @@ function StudentDetailsDialog({ open, onOpenChange, student, onSendWarning, onAl
       toast.error('Please enter a message for parent');
       return;
     }
-    
+
     try {
       const res = await fetch('/api/messages', {
         method: 'POST',
@@ -575,14 +612,19 @@ function PointsPage() {
             subjectCount: marks.length
           });
 
-          const idHash = user.id.split('').reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0);
-          const academicPts = Math.floor((data.data.stats?.currentCGPA || 7) * 10);
-          const socialPts = (idHash % 50) + 20;
-          setDynamicPoints({
-            totalPoints: academicPts + socialPts + 100, // Base
-            academicPoints: academicPts + 80,
-            socialPoints: socialPts + 20
-          });
+          if (data.data.points) {
+            setDynamicPoints({
+              totalPoints: data.data.points.totalPoints,
+              academicPoints: data.data.points.academicPoints,
+              socialPoints: data.data.points.socialPoints
+            });
+          } else {
+            setDynamicPoints({
+              totalPoints: 0,
+              academicPoints: 0,
+              socialPoints: 0
+            });
+          }
         }
       } catch (error) {
         console.error('Failed to fetch academic data:', error);
@@ -694,9 +736,9 @@ function PointsPage() {
 function NotificationsDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const { messages, user } = useAppStore();
 
-  // Filter messages for the current user (student gets messages sent to them or all students)
+  // Filter messages for the current user (student gets messages sent to them, by them, or all students)
   const userMessages = user?.role === 'student'
-    ? messages.filter(m => m.receiverId === user.id || m.targetType === 'student' || m.targetType === 'all')
+    ? messages.filter(m => m.senderId === user.id || m.receiverId === user.id || m.targetType === 'student' || m.targetType === 'all')
     : messages;
 
   const unreadCount = userMessages.filter(m => !m.isRead).length;
@@ -866,8 +908,9 @@ function DesktopSidebar() {
 
   // Get unread notifications count
   const { messages } = useAppStore();
+  // Filter messages for the current user
   const userMessages = user?.role === 'student'
-    ? messages.filter(m => m.receiverId === user.id || m.targetType === 'student' || m.targetType === 'all')
+    ? messages.filter(m => m.senderId === user.id || m.receiverId === user.id || m.targetType === 'student' || m.targetType === 'all')
     : messages;
   const unreadCount = userMessages.filter(m => !m.isRead).length;
 
@@ -910,7 +953,7 @@ function DesktopSidebar() {
               </Badge>
               {user?.role === 'student' && (
                 <Badge variant="outline" className="text-xs rounded-lg">
-                  Year {user?.year} - {user?.section}
+                  Batch {user?.collegeId?.split('-')?.[2] || user?.year} | Sec {user?.section}
                 </Badge>
               )}
               {user?.role === 'student' && user?.semester && (
@@ -1132,12 +1175,13 @@ function StudentDashboard() {
         if (data.success && data.data.stats) {
           setStats(data.data.stats);
 
-          // Generate unique pseudo-random points based on student ID to show varied data per user
-          const idHash = user.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-          const academicScore = data.data.stats.currentCGPA || 7;
-          setDynamicPoints({
-            totalPoints: 120 + (idHash % 100) + Math.floor(academicScore * 10)
-          });
+          if (data.data.points) {
+            setDynamicPoints({
+              totalPoints: data.data.points.totalPoints
+            });
+          } else {
+            setDynamicPoints({ totalPoints: 0 });
+          }
         }
       } catch (error) {
         console.error('Failed to fetch stats:', error);
@@ -1152,19 +1196,39 @@ function StudentDashboard() {
     const fetchTodayCourses = async () => {
       if (!user?.section) return;
       try {
-        const res = await fetch(`/api/timetable?section=${user.section}`);
+        const formattedSection = user.section.includes('-')
+          ? user.section
+          : `${user.branch || ''}-${user.section}`;
+
+        const res = await fetch(`/api/timetable?section=${formattedSection.toUpperCase()}`);
         const data = await res.json();
         if (data.success && data.entries) {
           const today = new Date().getDay();
           const todayMapped = today === 0 ? 0 : today; // 0 is Sunday, 1 is Monday etc
-          setTodayCourses(data.entries.filter((e: any) => e.dayOfWeek === todayMapped));
+          const filtered = data.entries.filter((e: any) => e.dayOfWeek === todayMapped);
+
+          // Sort by start time (HH:mm)
+          const sorted = filtered.sort((a: any, b: any) => (a.startTime || '').localeCompare(b.startTime || ''));
+
+          // Merge identical consecutive subjects (e.g. 2rd classes/labs)
+          const merged = [];
+          for (let i = 0; i < sorted.length; i++) {
+            const current = sorted[i];
+            const last = merged[merged.length - 1];
+            if (last && (last.subject === current.subject)) {
+              last.endTime = current.endTime;
+            } else {
+              merged.push({ ...current });
+            }
+          }
+          setTodayCourses(merged);
         }
       } catch (error) {
         console.error('Failed to fetch today courses:', error);
       }
     };
     fetchTodayCourses();
-  }, [user?.section]);
+  }, [user?.section, dataUpdateCounter]);
 
   const attendancePercent = stats.overallAttendance || 0;
   const cgpa = stats.currentCGPA ? stats.currentCGPA.toFixed(2) : '0.00';
@@ -1197,17 +1261,6 @@ function StudentDashboard() {
         <div>
           <p className="text-sm text-muted-foreground">{getGreeting()}</p>
           <h1 className="text-2xl font-bold tracking-tight">{user?.name || 'Student'}</h1>
-          <div className="flex items-center gap-2 mt-1.5">
-            <Badge variant="secondary" className="rounded-md text-xs font-medium">
-              {user?.branch}
-            </Badge>
-            <Badge variant="outline" className="rounded-md text-xs">
-              Sem {user?.semester || 4}
-            </Badge>
-            <Badge variant="outline" className="rounded-md text-xs">
-              Sec {user?.section}
-            </Badge>
-          </div>
         </div>
         <div className="text-right">
           <div className="text-3xl font-bold text-slate-700 dark:text-slate-200">{new Date().getDate()}</div>
@@ -1333,10 +1386,10 @@ function StudentDashboard() {
                   >
                     <div className={`w-1 h-10 rounded-full ${color.bar}`} />
                     <div className={`w-10 h-10 rounded-lg ${color.bg} flex items-center justify-center`}>
-                      <span className={`font-bold text-sm ${color.text}`}>{course.name.charAt(0)}</span>
+                      <span className={`font-bold text-sm ${color.text}`}>{(course.name || course.subject)?.charAt(0) || 'C'}</span>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm truncate">{course.name}</p>
+                      <p className="font-medium text-sm truncate">{course.name || course.subject}</p>
                       <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
                         <Clock className="w-3 h-3" />
                         <span>{course.startTime} - {course.endTime}</span>
@@ -1350,7 +1403,7 @@ function StudentDashboard() {
                       </div>
                     </div>
                     <Badge variant="outline" className="text-[10px] rounded-md">
-                      {course.credits} Cr
+                      {(course.credits || 3)} Cr
                     </Badge>
                   </div>
                 );
@@ -1949,11 +2002,29 @@ function StatisticsPage() {
 // ============ TIMETABLE PAGE ============
 
 function TimetablePage() {
-  const { user, courses, riskStudents } = useAppStore();
+  const { user, courses, riskStudents, dataUpdateCounter, timetableFilters, setTimetableFilters } = useAppStore();
   const [selectedSection, setSelectedSection] = useState('CSE-A');
   const [selectedBranch, setSelectedBranch] = useState('CSE');
   const [dbTimetable, setDbTimetable] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Sync with global timetable filters (e.g. from Admin Dashboard)
+  useEffect(() => {
+    if (timetableFilters.section) {
+      const section = timetableFilters.section;
+      setSelectedSection(section);
+      if (section.includes('-')) {
+        setSelectedBranch(section.split('-')[0]);
+      } else {
+        setSelectedBranch(section);
+      }
+    }
+    
+    // Clear the filters after applying
+    if (timetableFilters.section) {
+      setTimetableFilters({ section: null, semester: null });
+    }
+  }, [timetableFilters, setTimetableFilters]);
 
   // Re-sync to user's identity if logged in as a student
   useEffect(() => {
@@ -1963,7 +2034,7 @@ function TimetablePage() {
     }
   }, [user]);
 
-  // Fetch fully parsed DB timetable on load
+  // Fetch fully parsed DB timetable on load and sync
   useEffect(() => {
     const fetchTimetable = async () => {
       setLoading(true);
@@ -1980,7 +2051,7 @@ function TimetablePage() {
       }
     };
     fetchTimetable();
-  }, []);
+  }, [dataUpdateCounter]);
 
   const days = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
   const timeSlots = [
@@ -1993,25 +2064,43 @@ function TimetablePage() {
     { time: '14:00-15:00', label: '2:00', dbStart: '14:00' },
   ];
 
-  // Get unique sections filtering
-  const branches = ['CSE', 'AI/ML', 'ECE', 'EE/EEE', 'CE', 'ME', 'DS', 'CST', 'IT'];
-  const sectionsByBranch: Record<string, string[]> = {
-    'CSE': ['CSE-A', 'CSE-B', 'CSE-C', 'CSE-D', 'CSE-E', 'CSE-F'],
-    'AI/ML': ['AI/ML-A', 'AI/ML-B', 'AI/ML-C'],
-    'ECE': ['ECE-A', 'ECE-B'],
-    'EE/EEE': ['EE/EEE'],
-    'CE': ['CE'],
-    'ME': ['ME'],
-    'DS': ['DS'],
-    'CST': ['CST'],
-    'IT': ['IT'],
-  };
+  // Extract all unique sections from actual backend database timetable
+  const allSections = [...new Set(dbTimetable.map(e => e.section).filter(Boolean))].sort() as string[];
 
-  const currentSections = sectionsByBranch[selectedBranch] || [];
+  // Try to group by branch dynamically if they follow the 'BRANCH-SECTION' format
+  const dynamicBranches = [...new Set(allSections.map(s => s.split('-')[0]))].sort();
+  const validBranch = dynamicBranches.includes(selectedBranch) ? selectedBranch : (dynamicBranches[0] || 'CSE');
+  const validSections = allSections.filter(s => s.startsWith(validBranch));
+
+  // Auto-correct section selection if empty or invalid
+  const activeSection = (validSections.includes(selectedSection) ? selectedSection : validSections[0]) || allSections[0] || '';
 
   const getSubjectForSlot = (day: string, section: string, timeObj: any) => {
     if (timeObj.isLunch) return 'LUNCH';
-    const entry = dbTimetable.find(e => e.dayName === day && e.section === section && e.startTime === timeObj.dbStart);
+    // Try strict match first, then fallback to loose match
+    let entry = dbTimetable.find(e => 
+      e.dayName === day && 
+      e.section === section && 
+      e.startTime === timeObj.dbStart
+    );
+
+    if (!entry && section.includes('-')) {
+      const shortSec = section.split('-').pop();
+      entry = dbTimetable.find(e =>
+        e.dayName === day &&
+        e.section === shortSec &&
+        e.startTime === timeObj.dbStart
+      );
+    }
+
+    if (!entry) {
+      entry = dbTimetable.find(e =>
+        e.dayName === day &&
+        section.endsWith(e.section) &&
+        e.startTime === timeObj.dbStart
+      );
+    }
+
     return entry ? entry.subject : '';
   };
 
@@ -2027,7 +2116,7 @@ function TimetablePage() {
   };
 
   // Calculate dynamic stats
-  const mondayClasses = dbTimetable.filter(e => e.dayName === 'MONDAY' && e.section === selectedSection);
+  const mondayClasses = dbTimetable.filter(e => e.dayName === 'MONDAY' && e.section === activeSection);
   const classesToday = mondayClasses.length;
 
   return (
@@ -2039,7 +2128,7 @@ function TimetablePage() {
             {user?.role === 'faculty' ? 'Teaching Schedule' : 'Class Timetable'}
           </h2>
           <p className="text-sm text-muted-foreground">
-            B.Tech 2024 Batch, 4th Semester (Effective from 09/02/2026)
+            B.Tech {getBatchFromId(user?.collegeId)} Batch (Active Session)
           </p>
         </div>
       </div>
@@ -2048,30 +2137,35 @@ function TimetablePage() {
       <Card className="border-0 shadow-md rounded-2xl">
         <CardContent className="p-3">
           <div className="flex flex-wrap gap-3 items-center">
-            <div className="flex items-center gap-2">
-              <Label className="text-xs font-medium">Branch:</Label>
-              <Select value={selectedBranch} onValueChange={(v) => {
-                setSelectedBranch(v);
-                setSelectedSection(sectionsByBranch[v]?.[0] || v);
-              }}>
-                <SelectTrigger className="w-28 rounded-xl h-9">
-                  <SelectValue />
+            {dynamicBranches.length > 0 && (
+              <div className="flex items-center gap-2">
+                <Label className="text-xs font-medium">Group / Branch:</Label>
+                <Select value={validBranch} onValueChange={(v) => {
+                  setSelectedBranch(v);
+                  const newValid = allSections.filter(s => s.startsWith(v));
+                  if (newValid.length > 0) setSelectedSection(newValid[0]);
+                }}>
+                  <SelectTrigger className="w-40 rounded-xl h-9">
+                    <SelectValue placeholder="Select" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {dynamicBranches.map(branch => (
+                      <SelectItem key={branch} value={branch}>{branch}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            <div className="flex flex-1 items-center gap-2">
+              <Label className="text-xs font-medium">Timetable Section:</Label>
+              <Select value={activeSection} onValueChange={setSelectedSection}>
+                <SelectTrigger className="w-full max-w-[350px] rounded-xl h-9">
+                  <SelectValue placeholder="Select a valid class" />
                 </SelectTrigger>
                 <SelectContent>
-                  {branches.map(branch => (
-                    <SelectItem key={branch} value={branch}>{branch}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex items-center gap-2">
-              <Label className="text-xs font-medium">Section:</Label>
-              <Select value={selectedSection} onValueChange={setSelectedSection}>
-                <SelectTrigger className="w-28 rounded-xl h-9">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {currentSections.map(section => (
+                  {validSections.length > 0 ? validSections.map(section => (
+                    <SelectItem key={section} value={section}>{section}</SelectItem>
+                  )) : allSections.map(section => (
                     <SelectItem key={section} value={section}>{section}</SelectItem>
                   ))}
                 </SelectContent>
@@ -2098,39 +2192,86 @@ function TimetablePage() {
               </tr>
             </thead>
             <tbody>
-              {days.map((day, dayIndex) => (
-                <tr key={day} className={`${dayIndex % 2 === 0 ? 'bg-white dark:bg-gray-900' : 'bg-gray-50 dark:bg-gray-800/50'}`}>
-                  <td className="p-2 text-xs font-bold text-gray-700 dark:text-gray-300 border-r border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800">
-                    {day}
-                  </td>
-                  {timeSlots.map((slot, slotIndex) => {
-                    if (slot.isLunch) {
+              {days.map((day, dayIndex) => {
+                let skipNext = false;
+                return (
+                  <tr key={day} className={`${dayIndex % 2 === 0 ? 'bg-white dark:bg-gray-900' : 'bg-gray-50 dark:bg-gray-800/50'}`}>
+                    <td className="p-2 text-xs font-bold text-gray-700 dark:text-gray-300 border-r border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800">
+                      {day}
+                    </td>
+                    {timeSlots.map((slot, slotIndex) => {
+                      if (skipNext) {
+                        skipNext = false;
+                        return null; // Don't render since previous slot spanned over this one
+                      }
+
+                      if (slot.isLunch) {
+                        return (
+                          <td key={slot.time} className="p-1 text-center border-r border-gray-200 dark:border-gray-700 bg-gray-200 dark:bg-gray-700">
+                            <span className="text-[10px] text-gray-500 dark:text-gray-400">LUNCH</span>
+                          </td>
+                        );
+                      }
+                      const subject = getSubjectForSlot(day, activeSection, slot);
+                      const nextSlot = timeSlots[slotIndex + 1];
+                      const nextSubject = nextSlot ? getSubjectForSlot(day, activeSection, nextSlot) : null;
+
+                      // Precise current hour detection using time ranges
+                      const now = new Date();
+                      const currentDayIdx = now.getDay(); // 0=Sun, 1=Mon...
+                      const isToday = day === (days[currentDayIdx - 1] || '');
+                      let isCurrentHour = false;
+
+                      if (isToday && !slot.isLunch) {
+                        const nowDecimal = now.getHours() + now.getMinutes() / 60;
+                        const [startH, startM] = (slot.dbStart || '00:00').split(':').map(Number);
+                        const startDecimal = startH + startM / 60;
+                        const endDecimal = startDecimal + 1.0;
+                        isCurrentHour = nowDecimal >= startDecimal && nowDecimal < endDecimal;
+                      }
+
+                      // Spanning logic: match identical subjects OR assume span for Labs/AR if next is empty
+                      const isSpannableSubject = subject && (
+                        subject.includes('LAB') ||
+                        subject.includes('AR CLASS') ||
+                        subject.includes('YOGA') ||
+                        subject.includes('PRACTICAL') ||
+                        subject.includes('PROJECT')
+                      );
+
+                      const canSpan = subject && subject !== 'LUNCH' && nextSlot && !nextSlot.isLunch && (
+                        nextSubject === subject || (isSpannableSubject && (nextSubject === '' || !nextSubject))
+                      );
+
+                      if (canSpan) {
+                        skipNext = true;
+                        if (isToday) {
+                          const [startH, startM] = (slot.dbStart || '00:00').split(':').map(Number);
+                          const startDecimal = startH + startM / 60;
+                          const endDecimal = startDecimal + 2.0;
+                          const nowDecimal = now.getHours() + now.getMinutes() / 60;
+                          isCurrentHour = nowDecimal >= startDecimal && nowDecimal < endDecimal;
+                        }
+                      }
+
                       return (
-                        <td key={slot.time} className="p-1 text-center border-r border-gray-200 dark:border-gray-700 bg-gray-200 dark:bg-gray-700">
-                          <span className="text-[10px] text-gray-500 dark:text-gray-400">LUNCH</span>
+                        <td key={slot.time} colSpan={canSpan ? 2 : 1} className={`p-1 border-r border-gray-200 dark:border-gray-700 ${isCurrentHour ? 'bg-indigo-50/50 dark:bg-indigo-900/30' : ''}`}>
+                          {subject ? (
+                            <div className={`p-2 rounded-lg border text-center ${getSubjectColor(subject)} ${canSpan ? 'flex flex-col items-center justify-center min-h-[44px]' : ''}`}>
+                              <p className="text-xs font-semibold text-gray-700 dark:text-gray-200">{subject}</p>
+                              {canSpan && <p className="text-[10px] text-muted-foreground mt-0.5 opacity-80">(2 HR)</p>}
+                            </div>
+                          ) : (
+                            <div className="p-2 text-center">
+                              <span className="text-[10px] text-gray-300 dark:text-gray-600">-</span>
+                            </div>
+                          )}
                         </td>
                       );
-                    }
-                    const subject = getSubjectForSlot(day, selectedSection, slot);
-                    const isCurrentHour = new Date().getHours() >= parseInt(slot.label.split(':')[0]) &&
-                      new Date().getHours() < parseInt(slot.label.split(':')[0]) + 1 &&
-                      day === days[new Date().getDay() - 1];
-                    return (
-                      <td key={slot.time} className={`p-1 border-r border-gray-200 dark:border-gray-700 ${isCurrentHour ? 'bg-slate-50 dark:bg-slate-900/20' : ''}`}>
-                        {subject ? (
-                          <div className={`p-2 rounded-lg border text-center ${getSubjectColor(subject)}`}>
-                            <p className="text-xs font-semibold text-gray-700 dark:text-gray-200">{subject}</p>
-                          </div>
-                        ) : (
-                          <div className="p-2 text-center">
-                            <span className="text-[10px] text-gray-300 dark:text-gray-600">-</span>
-                          </div>
-                        )}
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
+                    })}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -2737,7 +2878,7 @@ function AttendanceCGPAPage() {
 
   // Get only the last 2 semesters (sorted in descending order)
   const allSemesters = Object.keys(semesterData).map(Number).sort((a, b) => b - a);
-  const recentSemesters = allSemesters; // Show all semesters instead of just 2
+  const recentSemesters = allSemesters.slice(0, 2); // Show attendance for last 2 semesters only
 
   // Filter marks by semester for performance table (uses its own independent dropdown)
   const filteredMarks = performanceSemester === 'all'
@@ -3123,7 +3264,7 @@ function MessagesPage() {
 
   // Filter messages for the current student
   const userMessages = user?.role === 'student'
-    ? messages.filter(m => m.receiverId === user.id || m.targetType === 'student' || m.targetType === 'all')
+    ? messages.filter(m => m.senderId === user.id || m.receiverId === user.id || m.targetType === 'student' || m.targetType === 'all')
     : messages;
 
   const filteredMessages = userMessages.filter(m => {
@@ -3170,7 +3311,7 @@ function MessagesPage() {
   };
 
   // Handle send message to teacher
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
     if (!selectedTeacher || !contactSubject || !contactMessage) {
       toast.error('Please fill all fields');
       return;
@@ -3178,26 +3319,35 @@ function MessagesPage() {
 
     const teacher = facultyMembers.find(f => f.id === selectedTeacher);
 
-    // Add message directly to teacher's messages
-    addMessage({
-      id: Date.now().toString(),
-      senderId: user?.id || 'student',
-      senderName: user?.name || 'Student',
-      receiverId: selectedTeacher,
-      targetType: 'student',
-      title: contactSubject,
-      content: contactMessage,
-      messageType: 'info',
-      isRead: false,
-      sentAt: new Date(),
-    });
+    try {
+      const res = await fetch('/api/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          senderId: user?.id,
+          receiverId: selectedTeacher,
+          targetType: 'faculty',
+          title: contactSubject,
+          content: contactMessage,
+          messageType: 'info'
+        })
+      });
 
-    toast.success(`Message sent to ${teacher?.name}!`);
+      const data = await res.json();
+      if (data.success) {
+        addMessage(data.message);
+        toast.success(`Message sent to ${teacher?.name}!`);
 
-    // Reset form
-    setSelectedTeacher('');
-    setContactSubject('');
-    setContactMessage('');
+        // Reset form
+        setSelectedTeacher('');
+        setContactSubject('');
+        setContactMessage('');
+      } else {
+        toast.error(data.message || 'Failed to send message');
+      }
+    } catch {
+      toast.error('Failed to send message');
+    }
   };
 
   return (
@@ -3837,6 +3987,9 @@ function AdminUsersPage() {
     URL.revokeObjectURL(url);
     toast.success('User list exported');
   };
+  const [selectedUser, setSelectedUser] = useState<any | null>(null);
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
   const [deleteUserId, setDeleteUserId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const { dataUpdateCounter } = useAppStore();
@@ -3860,6 +4013,33 @@ function AdminUsersPage() {
   useEffect(() => {
     fetchUsers();
   }, [fetchUsers, dataUpdateCounter]);
+
+  const handleResetSinglePassword = async () => {
+    if (!selectedUser || !newPassword || newPassword.length < 6) {
+      toast.error('Please enter a valid password (min 6 chars)');
+      return;
+    }
+
+    setIsResettingPassword(true);
+    try {
+      const res = await fetch('/api/users', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: selectedUser.id, password: newPassword }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success(`Password reset for ${selectedUser.name}`);
+        setNewPassword('');
+      } else {
+        toast.error(data.message || 'Failed to reset password');
+      }
+    } catch (error) {
+      toast.error('Failed to reset password');
+    } finally {
+      setIsResettingPassword(false);
+    }
+  };
 
   const handleDeleteUser = async () => {
     if (!deleteUserId) return;
@@ -4028,7 +4208,15 @@ function AdminUsersPage() {
                           </Badge>
                         </td>
                         <td className="py-3 px-4 text-sm">{user.branch || user.department || '-'}</td>
-                        <td className="py-3 px-4">
+                        <td className="py-3 px-4 flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setSelectedUser(user)}
+                            className="h-8 w-8 p-0 text-slate-500 hover:text-slate-600 hover:bg-slate-50"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </Button>
                           {user.role !== 'admin' && (
                             <Button
                               variant="ghost"
@@ -4049,6 +4237,102 @@ function AdminUsersPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* User Details & Password Reset Dialog */}
+      <Dialog open={!!selectedUser} onOpenChange={(open) => !open && setSelectedUser(null)}>
+        <DialogContent className="rounded-2xl max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>User Profile Details</DialogTitle>
+          </DialogHeader>
+
+          {selectedUser && (
+            <div className="space-y-6 pt-2">
+              <div className="flex items-center gap-4">
+                <Avatar className="w-16 h-16 ring-2 ring-slate-100">
+                  <AvatarFallback className="text-2xl text-white bg-slate-600">
+                    {selectedUser.name?.charAt(0)}
+                  </AvatarFallback>
+                </Avatar>
+                <div>
+                  <h3 className="text-lg font-bold">{selectedUser.name}</h3>
+                  <p className="text-sm text-muted-foreground">{selectedUser.collegeId}</p>
+                  <Badge className={`mt-1 text-xs rounded-lg ${getRoleColor(selectedUser.role)}`}>
+                    {selectedUser.role}
+                  </Badge>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-[10px] text-muted-foreground uppercase font-bold">Email</p>
+                  <p className="text-sm truncate">{selectedUser.email || '-'}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-muted-foreground uppercase font-bold">Phone</p>
+                  <p className="text-sm">{selectedUser.phone || '-'}</p>
+                </div>
+                {selectedUser.role === 'student' ? (
+                  <>
+                    <div>
+                      <p className="text-[10px] text-muted-foreground uppercase font-bold">Branch</p>
+                      <p className="text-sm">{selectedUser.branch || '-'}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-muted-foreground uppercase font-bold">Section</p>
+                      <p className="text-sm">{selectedUser.section || '-'}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-muted-foreground uppercase font-bold">Year</p>
+                      <p className="text-sm">{selectedUser.year || '-'}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-muted-foreground uppercase font-bold">Parent Phone</p>
+                      <p className="text-sm">{selectedUser.parentPhone || '-'}</p>
+                    </div>
+                  </>
+                ) : (
+                  <div>
+                    <p className="text-[10px] text-muted-foreground uppercase font-bold">Department</p>
+                    <p className="text-sm">{selectedUser.department || '-'}</p>
+                  </div>
+                )}
+                <div className="col-span-2">
+                  <p className="text-[10px] text-muted-foreground uppercase font-bold">Account Created</p>
+                  <p className="text-sm">{new Date(selectedUser.createdAt).toLocaleString()}</p>
+                </div>
+              </div>
+
+              <div className="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-xl space-y-3">
+                <h4 className="text-sm font-bold flex items-center gap-2">
+                  <Lock className="w-4 h-4" /> Reset Password
+                </h4>
+                <div className="flex gap-2">
+                  <Input
+                    type="password"
+                    placeholder="New password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="h-9 rounded-xl text-sm"
+                  />
+                  <Button
+                    size="sm"
+                    onClick={handleResetSinglePassword}
+                    disabled={isResettingPassword}
+                    className="rounded-xl h-9"
+                  >
+                    {isResettingPassword ? 'Updating...' : 'Reset'}
+                  </Button>
+                </div>
+                <p className="text-[10px] text-muted-foreground">User must relogin with the new password after reset.</p>
+              </div>
+
+              <Button variant="outline" onClick={() => setSelectedUser(null)} className="w-full rounded-xl">
+                Close
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={!!deleteUserId} onOpenChange={(open) => !open && setDeleteUserId(null)}>
@@ -4095,7 +4379,73 @@ function AdminImportPage() {
   const [resetRole, setResetRole] = useState<'students' | 'faculty' | 'all'>('all');
   const [resetting, setResetting] = useState(false);
   const [showResetDialog, setShowResetDialog] = useState(false);
-  const { triggerDataUpdate } = useAppStore();
+  const [importMode, setImportMode] = useState<'append' | 'replace'>('append');
+  const [deleteRecentHours, setDeleteRecentHours] = useState<string>('1');
+  const [timetableSummaries, setTimetableSummaries] = useState<any[]>([]);
+  const [initializingAcademic, setInitializingAcademic] = useState(false);
+  const { dataUpdateCounter, triggerDataUpdate, setActiveTab, setTimetableFilters } = useAppStore();
+
+  const handleInitializeAcademic = async () => {
+    setInitializingAcademic(true);
+    try {
+      const res = await fetch('/api/academic', {
+        method: 'POST',
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success(data.message);
+      } else {
+        toast.error(data.message || 'Initialization failed');
+      }
+    } catch (e) {
+      toast.error('Failed to initialize academic data');
+    } finally {
+      setInitializingAcademic(false);
+    }
+  };
+
+  const handleViewTimetable = (section: string) => {
+    // Stage the filters in global store then Switch tab
+    setTimetableFilters({ section, semester: null });
+    setActiveTab('timetable');
+  };
+
+  const fetchTimetableSummary = useCallback(async () => {
+    try {
+      const res = await fetch('/api/timetable');
+      const data = await res.json();
+      if (data.success && data.summaries) {
+        setTimetableSummaries(data.summaries);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchTimetableSummary();
+  }, [dataUpdateCounter, fetchTimetableSummary]);
+
+  const handleDeleteTimetable = async (section: string, semester: number | null) => {
+    if (!confirm(`Are you sure you want to delete all entries for ${section}${semester ? ` (Semester ${semester})` : ''}?`)) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/timetable/delete?section=${encodeURIComponent(section)}&semester=${semester || 'null'}`, {
+        method: 'DELETE'
+      });
+      const result = await res.json();
+      if (result.success) {
+        toast.success(result.message);
+        triggerDataUpdate(); // Refresh the grid
+      } else {
+        toast.error(result.message);
+      }
+    } catch (e) {
+      toast.error('Failed to delete timetable');
+    }
+  };
 
   // Fetch stats on mount
   useEffect(() => {
@@ -4158,7 +4508,7 @@ T002,Prof. Ananya Das,ananya@college.edu,9876543221,Mathematics,ananya@faculty`;
           const res = await fetch('/api/import', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ type, data: csvData }),
+            body: JSON.stringify({ type, data: csvData, mode: importMode }),
           });
 
           const result = await res.json();
@@ -4208,6 +4558,7 @@ T002,Prof. Ananya Das,ananya@college.edu,9876543221,Mathematics,ananya@faculty`;
     try {
       const formData = new FormData();
       formData.append('file', file);
+      formData.append('mode', importMode);
 
       const res = await fetch('/api/timetable/import', {
         method: 'POST',
@@ -4288,11 +4639,49 @@ T002,Prof. Ananya Das,ananya@college.edu,9876543221,Mathematics,ananya@faculty`;
     }
   };
 
+  const handleDeleteRecent = async () => {
+    setDeleting(true);
+    try {
+      const res = await fetch('/api/users/delete-recent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hours: parseInt(deleteRecentHours) }),
+      });
+      const result = await res.json();
+      if (result.success) {
+        toast.success(result.message);
+        triggerDataUpdate();
+      } else {
+        toast.error(result.message || 'Failed to delete recent data');
+      }
+    } catch (error) {
+      toast.error('Failed to delete recent data');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
-      <div>
-        <h2 className="text-xl font-bold">Import Data</h2>
-        <p className="text-sm text-muted-foreground">Bulk import students, faculty, and timetable</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-bold">Import Data</h2>
+          <p className="text-sm text-muted-foreground">Bulk import students, faculty, and timetable</p>
+        </div>
+        <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+          <Button
+            variant={importMode === 'append' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => setImportMode('append')}
+            className="rounded-lg text-xs h-8"
+          >Append</Button>
+          <Button
+            variant={importMode === 'replace' ? 'destructive' : 'ghost'}
+            size="sm"
+            onClick={() => setImportMode('replace')}
+            className="rounded-lg text-xs h-8"
+          >Replace</Button>
+        </div>
       </div>
 
       {/* Import Type Tabs */}
@@ -4311,7 +4700,7 @@ T002,Prof. Ananya Das,ananya@college.edu,9876543221,Mathematics,ananya@faculty`;
                 <GraduationCap className="w-4 h-4 text-emerald-600" />
                 Import Students
               </CardTitle>
-              <CardDescription>Upload student CSV to add to database</CardDescription>
+              <CardDescription>Upload student CSV ({importMode} mode)</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex gap-2">
@@ -4321,8 +4710,7 @@ T002,Prof. Ananya Das,ananya@college.edu,9876543221,Mathematics,ananya@faculty`;
                   onClick={() => downloadTemplate('students')}
                   className="rounded-xl flex-1"
                 >
-                  <Download className="w-4 h-4 mr-1" />
-                  Download Template
+                  <Download className="w-4 h-4 mr-1" /> Template
                 </Button>
                 <input
                   ref={studentCsvRef}
@@ -4342,7 +4730,7 @@ T002,Prof. Ananya Das,ananya@college.edu,9876543221,Mathematics,ananya@faculty`;
                   ) : (
                     <Upload className="w-4 h-4 mr-1" />
                   )}
-                  Import Students CSV
+                  Import CSV
                 </Button>
               </div>
 
@@ -4351,6 +4739,33 @@ T002,Prof. Ananya Das,ananya@college.edu,9876543221,Mathematics,ananya@faculty`;
                 <p><span className="text-red-500 font-medium">collegeId*</span>, <span className="text-red-500 font-medium">name*</span>, <span className="text-red-500 font-medium">password*</span>, email, phone, branch, section, year, parentEmail, parentPhone</p>
                 <p className="mt-1 text-yellow-600">* Password is required for each student</p>
               </div>
+            </CardContent>
+          </Card>
+          {/* Academic Data Initialization */}
+          <Card className="border-0 shadow-md rounded-2xl bg-emerald-50/50 dark:bg-emerald-900/10">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <Database className="w-4 h-4 text-emerald-600" />
+                Academic Data Management
+              </CardTitle>
+              <CardDescription>Initialize assessments and activity points for all students</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-xs text-muted-foreground">
+                This process will recalculate risk assessments and Activity Points for all registered students based on their existing academic, attendance, and exam records.
+              </p>
+              <Button 
+                onClick={handleInitializeAcademic} 
+                className="w-full rounded-xl bg-emerald-600 hover:bg-emerald-700 h-10"
+                disabled={initializingAcademic}
+              >
+                {initializingAcademic ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                ) : (
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                )}
+                Initialize ALL Student Academic Records
+              </Button>
             </CardContent>
           </Card>
         </TabsContent>
@@ -4363,7 +4778,7 @@ T002,Prof. Ananya Das,ananya@college.edu,9876543221,Mathematics,ananya@faculty`;
                 <UserCheck className="w-4 h-4 text-purple-600" />
                 Import Faculty
               </CardTitle>
-              <CardDescription>Upload faculty CSV to add to database</CardDescription>
+              <CardDescription>Upload faculty CSV ({importMode} mode)</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex gap-2">
@@ -4373,8 +4788,7 @@ T002,Prof. Ananya Das,ananya@college.edu,9876543221,Mathematics,ananya@faculty`;
                   onClick={() => downloadTemplate('faculty')}
                   className="rounded-xl flex-1"
                 >
-                  <Download className="w-4 h-4 mr-1" />
-                  Download Template
+                  <Download className="w-4 h-4 mr-1" /> Template
                 </Button>
                 <input
                   ref={facultyCsvRef}
@@ -4394,7 +4808,7 @@ T002,Prof. Ananya Das,ananya@college.edu,9876543221,Mathematics,ananya@faculty`;
                   ) : (
                     <Upload className="w-4 h-4 mr-1" />
                   )}
-                  Import Faculty CSV
+                  Import CSV
                 </Button>
               </div>
 
@@ -4412,47 +4826,76 @@ T002,Prof. Ananya Das,ananya@college.edu,9876543221,Mathematics,ananya@faculty`;
           <Card className="border-0 shadow-md rounded-2xl">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                <Calendar className="w-4 h-4 text-blue-600" />
+                <Calendar className="w-4 h-4 text-indigo-600" />
                 Import Timetable
               </CardTitle>
-              <CardDescription>Upload Excel file (.xlsx or .xls) to import timetable</CardDescription>
+              <CardDescription>Upload Excel for current session ({importMode} mode)</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex gap-2">
-                <input
-                  ref={timetableRef}
-                  type="file"
-                  accept=".xlsx,.xls"
-                  className="hidden"
-                  onChange={handleTimetableImport}
-                />
-                <Button
-                  size="sm"
-                  onClick={() => timetableRef.current?.click()}
-                  disabled={importing}
-                  className="rounded-xl flex-1 bg-blue-600 hover:bg-blue-700"
-                >
-                  {importing ? (
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-1" />
-                  ) : (
-                    <Upload className="w-4 h-4 mr-1" />
-                  )}
-                  Import Timetable Excel
-                </Button>
-              </div>
-
-              <div className="p-3 rounded-xl bg-gray-50 dark:bg-gray-800/50 text-xs text-muted-foreground">
-                <p className="font-medium text-foreground mb-1">Expected format:</p>
-                <p>The Excel file should have columns for Day, Section, and time slots (7:30-8:30, 8:40-9:40, etc.)</p>
-                <p className="mt-1">Each row represents a section's schedule for a particular day.</p>
-                <p className="mt-1 text-yellow-600">Note: This will replace all existing timetable entries.</p>
-              </div>
+              <input ref={timetableRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleTimetableImport} />
+              <Button size="sm" onClick={() => timetableRef.current?.click()} disabled={importing} className="w-full rounded-xl bg-indigo-600 hover:bg-indigo-700">
+                {importing ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                ) : (
+                  <Upload className="w-4 h-4 mr-2" />
+                )}
+                Upload Timetable Excel
+              </Button>
+              <p className="text-[10px] text-muted-foreground px-2">Format: Day, Section, 07:30, 08:40, 09:50, 11:00, 13:00, 14:00 </p>
+              <p className="mt-1">Each row represents a section's schedule for a particular day.</p>
+              <p className="mt-1 text-yellow-600">Note: This will replace all existing timetable entries.</p>
             </CardContent>
           </Card>
+
+          {/* Active Timetables Inventory (Only visible in Timetable tab) */}
+          <div className="pt-4 space-y-3">
+            <h3 className="text-md font-bold flex items-center gap-2">
+              <Database className="w-4 h-4 text-slate-500" />
+              Current Timetables in System
+            </h3>
+            <Card className="border-0 shadow-md rounded-2xl">
+              <CardContent className="p-4">
+                {timetableSummaries.length === 0 ? (
+                  <div className="text-center py-6 text-sm text-muted-foreground">
+                    No timetables uploaded yet.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                    {timetableSummaries.map((s, idx) => (
+                      <div key={idx} className="p-2 rounded-xl bg-slate-50 dark:bg-slate-900/30 border border-slate-100 dark:border-slate-800 flex items-center justify-between group">
+                        <div className="text-[11px]">
+                          <p className="font-bold">{s.section}</p>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => handleViewTimetable(s.section)}
+                            className="h-7 w-7 rounded-lg text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => handleDeleteTimetable(s.section, null)}
+                            className="h-7 w-7 rounded-lg text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/30 opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                          <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
       </Tabs>
 
-      {/* Delete Data Section */}
+      {/* Advanced Deletion */}
       <Card className="border-0 shadow-md rounded-2xl border-red-200 dark:border-red-900">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-semibold flex items-center gap-2 text-red-600">
@@ -4856,7 +5299,7 @@ function FacultyDashboard() {
       return;
     }
     const student = students.find(s => s.id === warningData.studentId);
-    
+
     try {
       const res = await fetch('/api/messages', {
         method: 'POST',
@@ -4890,7 +5333,7 @@ function FacultyDashboard() {
       return;
     }
     const student = students.find(s => s.id === alertData.studentId);
-    
+
     try {
       const res = await fetch('/api/messages', {
         method: 'POST',
@@ -5571,10 +6014,27 @@ function StudentsPage() {
 // ============ RISK ANALYSIS PAGE (Faculty) ============
 
 function RiskAnalysisPage() {
-  const { riskStudents } = useAppStore();
+  const { riskStudents, courses } = useAppStore();
   const [selectedStudent, setSelectedStudent] = useState<StudentRiskInfo | null>(null);
-  const highRiskStudents = riskStudents.filter(s => s.riskLevel === 'high');
-  const mediumRiskStudents = riskStudents.filter(s => s.riskLevel === 'medium');
+  const [selectedSubject, setSelectedSubject] = useState<string>('all');
+
+  // Derive available subjects from courses mapping (which stores ALL timetable entries), stripping non-academic blocks
+  const availableSubjects = [...new Set(courses.map((c: any) => c.name).filter(Boolean))]
+    .filter((name: string) => !name.toLowerCase().includes('break') && !name.toLowerCase().includes('lunch'))
+    .sort();
+
+  // Determine which sections take the selected subject
+  const sectionsTaught = selectedSubject === 'all'
+    ? []
+    : [...new Set(courses.filter((c: any) => c.name === selectedSubject).map((c: any) => c.section).filter(Boolean))];
+
+  // Filter riskStudents based on whether they belong to a section that takes this subject
+  const filteredStudents = selectedSubject === 'all'
+    ? riskStudents
+    : riskStudents.filter((s: any) => sectionsTaught.includes(s.section));
+
+  const highRiskStudents = filteredStudents.filter((s: any) => s.riskLevel === 'high');
+  const mediumRiskStudents = filteredStudents.filter((s: any) => s.riskLevel === 'medium');
 
   const getRiskColor = (level: string) => {
     switch (level) {
@@ -5587,9 +6047,25 @@ function RiskAnalysisPage() {
   return (
     <>
       <div className="space-y-4">
-        <div>
-          <h2 className="text-xl font-bold">Risk Analysis</h2>
-          <p className="text-sm text-muted-foreground">Identify at-risk students • Click on a card to view details</p>
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+          <div>
+            <h2 className="text-xl font-bold">Risk Analysis</h2>
+            <p className="text-sm text-muted-foreground">Identify at-risk students • Click on a card to view details</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Label className="text-xs font-medium whitespace-nowrap">Filter by Subject:</Label>
+            <Select value={selectedSubject} onValueChange={setSelectedSubject}>
+              <SelectTrigger className="w-[180px] rounded-xl h-9">
+                <SelectValue placeholder="All Subjects" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Subjects</SelectItem>
+                {availableSubjects.map((sub: any) => (
+                  <SelectItem key={sub} value={sub}>{sub}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         {/* High Risk Students */}
@@ -5868,10 +6344,10 @@ function MessagingPage() {
                       s.collegeId.toLowerCase().includes(searchTerm.toLowerCase())
                     )
                     .map((student) => (
-                    <SelectItem key={student.id} value={student.id}>
-                      {student.name} ({student.collegeId}){student.branch ? ` - ${student.branch}` : ''}
-                    </SelectItem>
-                  ))}
+                      <SelectItem key={student.id} value={student.id}>
+                        {student.name} ({student.collegeId}){student.branch ? ` - ${student.branch}` : ''}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
@@ -5962,9 +6438,9 @@ Date: ${new Date().toLocaleDateString()}
 Total Students: ${total}
 
 Risk Distribution:
-- High Risk: ${high} (${((high/total)*100).toFixed(1)}%)
-- Medium Risk: ${medium} (${((medium/total)*100).toFixed(1)}%)
-- Low Risk: ${low} (${((low/total)*100).toFixed(1)}%)
+- High Risk: ${high} (${((high / total) * 100).toFixed(1)}%)
+- Medium Risk: ${medium} (${((medium / total) * 100).toFixed(1)}%)
+- Low Risk: ${low} (${((low / total) * 100).toFixed(1)}%)
 
 Academic Averages:
 - Average Attendance: ${avgAtt}%
@@ -6048,38 +6524,52 @@ Academic Averages:
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-        {user?.role !== 'admin' && (
-          <Card className="border-0 shadow-md rounded-2xl hover:shadow-lg transition-shadow cursor-pointer" onClick={handleExportCSV}>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-900/30 flex items-center justify-center">
-                  <FileText className="w-5 h-5 text-slate-600" />
-                </div>
-                <div>
-                  <h3 className="font-medium text-sm">Student CSV</h3>
-                  <p className="text-xs text-muted-foreground">Export as spreadsheet</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        <Card className="border-0 shadow-md rounded-2xl hover:shadow-lg transition-shadow cursor-pointer" onClick={handleExportFullJSON}>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center">
-                <Database className="w-5 h-5 text-indigo-600" />
-              </div>
-              <div>
-                <h3 className="font-medium text-sm">Full Dataset JSON</h3>
-                <p className="text-xs text-muted-foreground">Complete database dump</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {user?.role !== 'admin' && (
+        {user?.role === 'admin' ? (
           <>
+            <Card className="border-0 shadow-md rounded-2xl hover:shadow-lg transition-shadow cursor-pointer" onClick={handleExportCSV}>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-900/30 flex items-center justify-center">
+                    <FileText className="w-5 h-5 text-slate-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-medium text-sm">User List CSV</h3>
+                    <p className="text-xs text-muted-foreground">Export all registered users</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-0 shadow-md rounded-2xl hover:shadow-lg transition-shadow cursor-pointer" onClick={handleExportFullJSON}>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center">
+                    <Database className="w-5 h-5 text-indigo-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-medium text-sm">Full Dataset JSON</h3>
+                    <p className="text-xs text-muted-foreground">Complete database dump</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </>
+        ) : (
+          <>
+            <Card className="border-0 shadow-md rounded-2xl hover:shadow-lg transition-shadow cursor-pointer" onClick={handleExportCSV}>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-900/30 flex items-center justify-center">
+                    <FileText className="w-5 h-5 text-slate-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-medium text-sm">Student CSV</h3>
+                    <p className="text-xs text-muted-foreground">Export as spreadsheet</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
             <Card className="border-0 shadow-md rounded-2xl hover:shadow-lg transition-shadow cursor-pointer" onClick={handleExportRiskReport}>
               <CardContent className="p-4">
                 <div className="flex items-center gap-3">
@@ -6149,7 +6639,7 @@ Academic Averages:
 // ============ MAIN APP COMPONENT ============
 
 function MainApp() {
-  const { user, activeTab, sidebarCollapsed, setCourses, setRiskStudents, dataUpdateCounter } = useAppStore();
+  const { user, activeTab, sidebarCollapsed, setCourses, setRiskStudents, fetchMessages, dataUpdateCounter } = useAppStore();
 
   // Global Data Synchronization
   useEffect(() => {
@@ -6175,7 +6665,12 @@ function MainApp() {
         }
       } catch (err) { console.error('Timetable sync failed', err); }
 
-      // 2. If Faculty/Admin, sync student list
+      // 2. Fetch messages for the current user to keep chat history in sync
+      try {
+        await fetchMessages();
+      } catch (err) { console.error('Messages sync failed', err); }
+
+      // 3. If Faculty/Admin, sync student list
       if (user?.role !== 'student') {
         try {
           const res = await fetch('/api/users?role=student');
@@ -6196,7 +6691,7 @@ function MainApp() {
     };
 
     syncGlobalData();
-  }, [user?.role, setCourses, setRiskStudents, dataUpdateCounter]);
+  }, [user?.role, setCourses, setRiskStudents, fetchMessages, dataUpdateCounter]);
 
   const renderContent = () => {
     if (user?.role === 'student') {
@@ -6215,6 +6710,7 @@ function MainApp() {
         case 'dashboard': return <AdminDashboard />;
         case 'users': return <AdminUsersPage />;
         case 'import': return <AdminImportPage />;
+        case 'timetable': return <TimetablePage />;
         case 'reports': return <ReportsPage />;
         case 'settings': return <SettingsPage />;
         default: return <AdminDashboard />;
@@ -6224,6 +6720,7 @@ function MainApp() {
         case 'dashboard': return <FacultyDashboard />;
         case 'students': return <StudentsPage />;
         case 'attendance': return <AttendanceUpdatePage />;
+        case 'timetable': return <TimetablePage />;
         case 'risk-analysis': return <RiskAnalysisPage />;
         case 'messaging': return <MessagingPage />;
         case 'reports': return <ReportsPage />;

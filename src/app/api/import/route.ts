@@ -97,7 +97,7 @@ function mapFacultyColumns(row: Record<string, string>) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { type, data } = body;
+    const { type, data, mode = 'append' } = body;
 
     if (!type || !data) {
       return NextResponse.json({
@@ -113,15 +113,20 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
+    if (mode === 'replace') {
+       await db.user.deleteMany({
+         where: { role: type === 'students' ? 'student' : 'faculty' }
+       });
+    }
+
     // Parse CSV data
     let records;
     try {
       records = parseCSV(data);
-    } catch (parseError: unknown) {
-      const errorMessage = parseError instanceof Error ? parseError.message : 'Failed to parse CSV';
+    } catch (parseError: any) {
       return NextResponse.json({
         success: false,
-        message: errorMessage
+        message: parseError.message || 'Failed to parse CSV'
       }, { status: 400 });
     }
 
@@ -146,64 +151,43 @@ export async function POST(request: NextRequest) {
           
           if (!student.collegeId || !student.name) {
             results.failed++;
-            results.errors.push(`Missing required fields (collegeId/name) for record: ${JSON.stringify(record)}`);
+            results.errors.push(`Missing fields (collegeId/name) for record: ${JSON.stringify(record)}`);
             continue;
           }
 
-          if (!student.password) {
-            results.failed++;
-            results.errors.push(`Missing password for student: ${student.collegeId}`);
-            continue;
-          }
+          const hashedPassword = await bcrypt.hash(student.password || '123456', 10);
 
-          // Hash the password from CSV
-          const hashedPassword = await bcrypt.hash(student.password, 10);
-
-          // Check if student already exists
-          const existing = await db.user.findUnique({
-            where: { collegeId: student.collegeId }
+          await db.user.upsert({
+            where: { collegeId: student.collegeId },
+            update: {
+              name: student.name,
+              email: student.email || null,
+              phone: student.phone || null,
+              branch: student.branch || null,
+              section: student.section || null,
+              year: student.year || null,
+              parentEmail: student.parentEmail || null,
+              parentPhone: student.parentPhone || null,
+            },
+            create: {
+              collegeId: student.collegeId,
+              name: student.name,
+              password: hashedPassword,
+              role: 'student',
+              email: student.email || null,
+              phone: student.phone || null,
+              branch: student.branch || null,
+              section: student.section || null,
+              year: student.year || null,
+              parentEmail: student.parentEmail || null,
+              parentPhone: student.parentPhone || null,
+            }
           });
-
-          if (existing) {
-            // Update existing student (including password)
-            await db.user.update({
-              where: { collegeId: student.collegeId },
-              data: {
-                name: student.name,
-                password: hashedPassword,
-                email: student.email || null,
-                phone: student.phone || null,
-                branch: student.branch || null,
-                section: student.section || null,
-                year: student.year || null,
-                parentEmail: student.parentEmail || null,
-                parentPhone: student.parentPhone || null,
-              }
-            });
-          } else {
-            // Create new student
-            await db.user.create({
-              data: {
-                collegeId: student.collegeId,
-                password: hashedPassword,
-                name: student.name,
-                role: 'student',
-                email: student.email || null,
-                phone: student.phone || null,
-                branch: student.branch || null,
-                section: student.section || null,
-                year: student.year || null,
-                parentEmail: student.parentEmail || null,
-                parentPhone: student.parentPhone || null,
-              }
-            });
-          }
           
           results.success++;
-        } catch (error: unknown) {
+        } catch (error: any) {
           results.failed++;
-          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-          results.errors.push(`Error processing student: ${errorMessage}`);
+          results.errors.push(`Error processing student: ${error.message}`);
         }
       }
     } else if (type === 'faculty') {
@@ -213,56 +197,35 @@ export async function POST(request: NextRequest) {
           
           if (!faculty.collegeId || !faculty.name) {
             results.failed++;
-            results.errors.push(`Missing required fields (collegeId/name) for record: ${JSON.stringify(record)}`);
+            results.errors.push(`Missing fields (collegeId/name) for record: ${JSON.stringify(record)}`);
             continue;
           }
 
-          if (!faculty.password) {
-            results.failed++;
-            results.errors.push(`Missing password for faculty: ${faculty.collegeId}`);
-            continue;
-          }
+          const hashedPassword = await bcrypt.hash(faculty.password || '123456', 10);
 
-          // Hash the password from CSV
-          const hashedPassword = await bcrypt.hash(faculty.password, 10);
-
-          // Check if faculty already exists
-          const existing = await db.user.findUnique({
-            where: { collegeId: faculty.collegeId }
+          await db.user.upsert({
+            where: { collegeId: faculty.collegeId },
+            update: {
+              name: faculty.name,
+              email: faculty.email || null,
+              phone: faculty.phone || null,
+              department: faculty.department || null,
+            },
+            create: {
+              collegeId: faculty.collegeId,
+              name: faculty.name,
+              password: hashedPassword,
+              role: 'faculty',
+              email: faculty.email || null,
+              phone: faculty.phone || null,
+              department: faculty.department || null,
+            }
           });
-
-          if (existing) {
-            // Update existing faculty (including password)
-            await db.user.update({
-              where: { collegeId: faculty.collegeId },
-              data: {
-                name: faculty.name,
-                password: hashedPassword,
-                email: faculty.email || null,
-                phone: faculty.phone || null,
-                department: faculty.department || null,
-              }
-            });
-          } else {
-            // Create new faculty
-            await db.user.create({
-              data: {
-                collegeId: faculty.collegeId,
-                password: hashedPassword,
-                name: faculty.name,
-                role: 'faculty',
-                email: faculty.email || null,
-                phone: faculty.phone || null,
-                department: faculty.department || null,
-              }
-            });
-          }
           
           results.success++;
-        } catch (error: unknown) {
+        } catch (error: any) {
           results.failed++;
-          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-          results.errors.push(`Error processing faculty: ${errorMessage}`);
+          results.errors.push(`Error processing faculty: ${error.message}`);
         }
       }
     }
@@ -273,12 +236,11 @@ export async function POST(request: NextRequest) {
       results
     });
 
-  } catch (error: unknown) {
+  } catch (error: any) {
     console.error('Import error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Failed to import data';
     return NextResponse.json({
       success: false,
-      message: errorMessage
+      message: error.message || 'Failed to import data'
     }, { status: 500 });
   }
 }

@@ -70,7 +70,6 @@ export async function POST(request: NextRequest) {
     });
 
     if (!user) {
-      // Demo mode: Create mock user for demo credentials
       const isStudent = collegeId.startsWith('CSE') || collegeId.startsWith('ECE') || 
                         collegeId.startsWith('ME') || collegeId.startsWith('CE') || 
                         collegeId.startsWith('IT');

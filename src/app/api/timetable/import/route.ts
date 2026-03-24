@@ -23,6 +23,8 @@ export async function POST(request: NextRequest) {
     const worksheet = workbook.Sheets[sheetName];
     
     const rawData = xlsx.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
+    const semester = formData.get('semester') ? parseInt(formData.get('semester') as string) : null;
+    const mode = formData.get('mode') || 'append'; // 'append' or 'replace'
 
     // Time slots mapping (column index -> start_time, end_time)
     const timeSlots: Record<number, [string, string]> = {
@@ -61,8 +63,8 @@ export async function POST(request: NextRequest) {
             currentDayNum = dayMap[dayVal];
         }
 
-        const section = row[1] ? String(row[1]).trim() : null;
-        if (!section || section.toLowerCase() === 'nan' || section === '') {
+        const sectionField = row[1] ? String(row[1]).trim() : null;
+        if (!sectionField || sectionField.toLowerCase() === 'nan' || sectionField === '') {
             continue;
         }
 
@@ -71,9 +73,9 @@ export async function POST(request: NextRequest) {
             const colIdx = parseInt(colIdxStr);
             if (colIdx >= row.length) continue;
 
-            const subject = row[colIdx] ? String(row[colIdx]).trim() : null;
+            const subjectField = row[colIdx] ? String(row[colIdx]).trim() : null;
 
-            if (!subject || subject.toLowerCase() === 'nan' || subject === '' || subject.toUpperCase() === 'LUNCH') {
+            if (!subjectField || subjectField.toLowerCase() === 'nan' || subjectField === '' || subjectField.toUpperCase().includes('LUNCH') || subjectField.toUpperCase().includes('BREAK')) {
                 continue;
             }
 
@@ -81,17 +83,27 @@ export async function POST(request: NextRequest) {
                 entries.push({
                     dayOfWeek: currentDayNum,
                     dayName: currentDay,
-                    section: section,
+                    section: sectionField.toUpperCase(),
                     startTime: startTime,
                     endTime: endTime,
-                    subject: subject.toUpperCase()
+                    subject: subjectField.toUpperCase(),
+                    semester: semester
                 });
             }
         }
     }
 
     // Clear existing timetable entries
-    await db.timetableEntry.deleteMany();
+    // Handle deletion if in replace mode
+    if (mode === 'replace') {
+      if (semester) {
+        await db.timetableEntry.deleteMany({
+          where: { semester: semester }
+        });
+      } else {
+        await db.timetableEntry.deleteMany(); // Clear all if no semester specified
+      }
+    }
 
     // Insert new parsed entries into the database
     let successCount = 0;
@@ -108,6 +120,7 @@ export async function POST(request: NextRequest) {
             startTime: entry.startTime,
             endTime: entry.endTime,
             subject: entry.subject,
+            semester: entry.semester
           }
         });
         successCount++;

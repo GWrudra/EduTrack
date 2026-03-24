@@ -1,5 +1,7 @@
+// FORCE REBUILD - Unified Point System Verified
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import bcrypt from 'bcryptjs';
 
 // GET: Fetch all users with optional role filter
 export async function GET(request: NextRequest) {
@@ -81,74 +83,18 @@ export async function GET(request: NextRequest) {
       usersWithRisk = users.map(user => {
         if (user.role !== 'student') return user;
 
-        // --- ATTENDANCE POINTS (max 50) ---
+        // --- UNIFIED POINT CALCULATION (Deterministic) ---
         const userAttendance = attendance.filter(a => a.studentId === user.id);
         const avgAtt = userAttendance.length > 0
           ? userAttendance.reduce((sum, a) => sum + a.percentage, 0) / userAttendance.length
           : 0;
 
-        let attPoints = 0;
-        if (avgAtt >= 95) attPoints = 50;
-        else if (avgAtt >= 90) attPoints = 45;
-        else if (avgAtt >= 85) attPoints = 40;
-        else if (avgAtt >= 80) attPoints = 35;
-        else if (avgAtt >= 75) attPoints = 30;
-        else if (avgAtt >= 70) attPoints = 20;
-        else if (avgAtt >= 60) attPoints = 10;
-        else attPoints = 0;
-
-        // --- CGPA POINTS (max 50) ---
         const latestRecord = records.find(r => r.studentId === user.id);
         const cgpa = latestRecord?.cgpa || 0;
 
-        let cgpaPoints = 0;
-        if (cgpa >= 9.5) cgpaPoints = 50;
-        else if (cgpa >= 9.0) cgpaPoints = 45;
-        else if (cgpa >= 8.5) cgpaPoints = 40;
-        else if (cgpa >= 8.0) cgpaPoints = 35;
-        else if (cgpa >= 7.5) cgpaPoints = 30;
-        else if (cgpa >= 7.0) cgpaPoints = 25;
-        else if (cgpa >= 6.0) cgpaPoints = 15;
-        else if (cgpa >= 5.0) cgpaPoints = 5;
-        else cgpaPoints = 0;
-
-        // --- CONSISTENCY POINTS (max 30) ---
-        // Count consecutive present days
-        const studentLogs = recentLogs
-          .filter(l => l.studentId === user.id)
-          .map(l => new Date(l.date).toDateString());
-        const uniqueDays = [...new Set(studentLogs)];
-
-        let maxConsecutive = 0;
-        let currentStreak = 0;
-        for (let i = 0; i < uniqueDays.length; i++) {
-          if (i === 0) {
-            currentStreak = 1;
-          } else {
-            const prev = new Date(uniqueDays[i - 1]);
-            const curr = new Date(uniqueDays[i]);
-            const diff = (curr.getTime() - prev.getTime()) / (1000 * 60 * 60 * 24);
-            if (diff === 1) {
-              currentStreak++;
-            } else {
-              currentStreak = 1;
-            }
-          }
-          if (currentStreak > maxConsecutive) maxConsecutive = currentStreak;
-        }
-
-        let consistencyPoints = 0;
-        if (maxConsecutive >= 30) consistencyPoints = 30;
-        else if (maxConsecutive >= 20) consistencyPoints = 25;
-        else if (maxConsecutive >= 15) consistencyPoints = 20;
-        else if (maxConsecutive >= 10) consistencyPoints = 15;
-        else if (maxConsecutive >= 5) consistencyPoints = 10;
-        else if (maxConsecutive >= 3) consistencyPoints = 5;
-        else consistencyPoints = 0;
-
-        // --- TOTAL SCORE & RISK LEVEL ---
-        // Max = 130 points; normalize to 0-100 scale
-        const totalPoints = attPoints + cgpaPoints + consistencyPoints;
+        const cgpaPoints = Math.floor(cgpa * 25);
+        const attPoints = Math.floor(avgAtt * 0.4);
+        const totalPoints = cgpaPoints + attPoints;
 
         // No-data fallback: if student has no attendance AND no academic records, can't assess → default low
         const hasData = userAttendance.length > 0 || latestRecord !== undefined;
@@ -161,7 +107,7 @@ export async function GET(request: NextRequest) {
           riskScore = 70; // appears healthy on screen
           riskLevel = 'low';
         } else {
-          riskScore = parseFloat(((totalPoints / 130) * 100).toFixed(1));
+          riskScore = parseFloat(((totalPoints / 290) * 100).toFixed(1));
           // Balanced thresholds:
           // < 30%  → High   (serious issues in multiple factors)
           // 30-54% → Medium (some concern in one or two areas)
@@ -175,7 +121,6 @@ export async function GET(request: NextRequest) {
         if (hasData) {
           if (avgAtt < 75) factors.push(`Low attendance: ${avgAtt.toFixed(1)}%`);
           if (cgpa > 0 && cgpa < 6.0) factors.push(`Low CGPA: ${cgpa.toFixed(2)}`);
-          if (maxConsecutive < 5 && userAttendance.length > 0) factors.push(`Low consistency: ${maxConsecutive} days`);
         }
 
         // Upsert risk assessment in background (fire-and-forget)
@@ -183,8 +128,7 @@ export async function GET(request: NextRequest) {
           where: { studentId: user.id },
           update: { riskLevel, riskScore, factors: factors.join(', ') },
           create: { studentId: user.id, riskLevel, riskScore, factors: factors.join(', ') }
-        }).catch(() => {});
-
+        }).catch(() => { });
 
         return {
           ...user,
@@ -195,8 +139,6 @@ export async function GET(request: NextRequest) {
           totalPoints,
           attPoints,
           cgpaPoints,
-          consistencyPoints,
-          maxConsecutiveDays: maxConsecutive,
           factors: factors.join(', ')
         };
       });
@@ -228,11 +170,53 @@ export async function GET(request: NextRequest) {
   }
 }
 
+// PATCH: Update user profile or reset password
+export async function PATCH(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { id, password, name, email, phone, branch, section, year, department, parentEmail, parentPhone } = body;
+
+    if (!id) {
+       return NextResponse.json({ success: false, message: 'User ID is required' }, { status: 400 });
+    }
+
+    const data: any = {};
+    if (password) {
+      data.password = await bcrypt.hash(password, 10);
+    }
+    if (name !== undefined) data.name = name;
+    if (email !== undefined) data.email = email;
+    if (phone !== undefined) data.phone = phone;
+    if (branch !== undefined) data.branch = branch;
+    if (section !== undefined) data.section = section;
+    if (year !== undefined) data.year = year;
+    if (department !== undefined) data.department = department;
+    if (parentEmail !== undefined) data.parentEmail = parentEmail;
+    if (parentPhone !== undefined) data.parentPhone = parentPhone;
+
+    await db.user.update({
+      where: { id },
+      data
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: 'User updated successfully'
+    });
+  } catch (error) {
+    console.error('Error updating user:', error);
+    return NextResponse.json({
+      success: false,
+      message: 'Failed to update user'
+    }, { status: 500 });
+  }
+}
+
 // DELETE: Delete a user by ID
 export async function DELETE(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
+    const id = searchParams.get('userId'); // Matches the frontend call
 
     if (!id) {
       return NextResponse.json({

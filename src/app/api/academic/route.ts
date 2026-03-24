@@ -332,6 +332,29 @@ export async function POST(request: NextRequest) {
             factors: factors.join(', '),
           }
         });
+
+        // Initialize Activity Points (Deterministic calculation from real performance)
+        const academicPts = Math.floor(cgpa * 25);
+        const socialPts = Math.floor(avgAttendance * 0.4);
+        const totalPts = academicPts + socialPts;
+
+        await db.pointsLedger.upsert({
+          where: { id: `initial-points-${student.id}` },
+          create: {
+            id: `initial-points-${student.id}`,
+            studentId: student.id,
+            totalPoints: totalPts,
+            socialPoints: socialPts,
+            academicPoints: academicPts,
+            reason: 'Academic Data Synchronization',
+            change: totalPts,
+          },
+          update: {
+            totalPoints: totalPts,
+            socialPoints: socialPts,
+            academicPoints: academicPts,
+          }
+        });
       }
     }
 
@@ -386,6 +409,11 @@ export async function GET(request: NextRequest) {
       orderBy: [{ semester: 'desc' }, { subjectCode: 'asc' }],
     });
 
+    const points = await db.pointsLedger.findFirst({
+      where: { studentId },
+      orderBy: { createdAt: 'desc' },
+    });
+
     // Filter by semester if provided
     if (semester && semester !== 'all') {
       const semNum = parseInt(semester);
@@ -412,6 +440,7 @@ export async function GET(request: NextRequest) {
         semesterRecords,
         attendanceRecords,
         subjectMarks,
+        points,
         stats: {
           currentCGPA,
           currentSGPA,

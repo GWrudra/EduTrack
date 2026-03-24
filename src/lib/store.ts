@@ -140,6 +140,9 @@ interface AppState {
   messages: Message[];
   dailyQuote: DailyQuote;
 
+  // Timetable quick view filters
+  timetableFilters: { section: string | null; semester: number | null };
+
   // Actions
   setUser: (user: User | null) => void;
   setToken: (token: string | null) => void;
@@ -168,6 +171,7 @@ interface AppState {
   addMessage: (message: Message) => void;
   fetchMessages: () => Promise<void>;
   setDailyQuote: (quote: DailyQuote) => void;
+  setTimetableFilters: (filters: { section: string | null; semester: number | null }) => void;
   exportData: () => string;
   importData: (data: string) => boolean;
 }
@@ -211,10 +215,11 @@ export const useAppStore = create<AppState>()(
       exams: [],
       marks: [],
       attendance: [],
-      points: { totalPoints: 100, socialPoints: 0, academicPoints: 0 },
+      points: { totalPoints: 0, socialPoints: 0, academicPoints: 0 },
       riskStudents: [],
       messages: [],
       dailyQuote: getRandomQuote(),
+      timetableFilters: { section: null, semester: null },
 
       // Actions
       setUser: (user) => set({ user, isAuthenticated: !!user }),
@@ -264,6 +269,7 @@ export const useAppStore = create<AppState>()(
         }
       },
       setDailyQuote: (dailyQuote) => set({ dailyQuote }),
+      setTimetableFilters: (timetableFilters) => set({ timetableFilters }),
       exportData: () => {
         const state = get();
         return JSON.stringify({
