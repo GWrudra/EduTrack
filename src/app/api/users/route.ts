@@ -58,108 +58,29 @@ export async function GET(request: NextRequest) {
       ]
     });
 
-    // If role is student or all, fetch risk assessments and merge
+    // Read cached risk assessments from DB (calculated during academic data seeding)
     let usersWithRisk = users;
-    if (!role || role === 'student') {
-      const attendance = await db.semesterAttendance.findMany({
-        select: { studentId: true, percentage: true }
+    if (!role || role === 'all' || role === 'student') {
+      const riskAssessments = await db.riskAssessment.findMany({
+        select: {
+          studentId: true,
+          riskLevel: true,
+          riskScore: true,
+          factors: true,
+        }
       });
-      const records = await db.semesterRecord.findMany({
-        select: { studentId: true, cgpa: true },
-        orderBy: { semester: 'desc' }
-      });
-      // Fetch attendance logs for consecutive days calculation
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      const recentLogs = await db.attendanceLog.findMany({
-        where: {
-          date: { gte: thirtyDaysAgo },
-          status: 'present'
-        },
-        select: { studentId: true, date: true },
-        orderBy: { date: 'asc' }
-      });
+
+      const riskMap = new Map(riskAssessments.map(r => [r.studentId, r]));
 
       usersWithRisk = users.map(user => {
         if (user.role !== 'student') return user;
 
-        const userAttendance = attendance.filter(a => a.studentId === user.id);
-        const avgAtt = userAttendance.length > 0
-          ? userAttendance.reduce((sum, a) => sum + a.percentage, 0) / userAttendance.length
-          : 0;
-
-        const latestRecord = records.find(r => r.studentId === user.id);
-        const cgpa = latestRecord?.cgpa || 0;
-
-        const hasData = userAttendance.length > 0 || latestRecord !== undefined;
-
-        // --- REVERSED TIERED POINT SYSTEM (higher points = higher risk) ---
-        // Attendance Risk Points (Max 50)
-        let attPoints = 0;
-        if (avgAtt >= 95) attPoints = 0;
-        else if (avgAtt >= 90) attPoints = 5;
-        else if (avgAtt >= 85) attPoints = 10;
-        else if (avgAtt >= 80) attPoints = 15;
-        else if (avgAtt >= 75) attPoints = 20;
-        else if (avgAtt >= 70) attPoints = 30;
-        else if (avgAtt >= 60) attPoints = 40;
-        else attPoints = 50;
-
-        // CGPA Risk Points (Max 50)
-        let cgpaPoints = 0;
-        if (cgpa >= 9.5) cgpaPoints = 0;
-        else if (cgpa >= 9.0) cgpaPoints = 5;
-        else if (cgpa >= 8.5) cgpaPoints = 10;
-        else if (cgpa >= 8.0) cgpaPoints = 15;
-        else if (cgpa >= 7.5) cgpaPoints = 20;
-        else if (cgpa >= 7.0) cgpaPoints = 25;
-        else if (cgpa >= 6.0) cgpaPoints = 35;
-        else if (cgpa >= 5.0) cgpaPoints = 45;
-        else cgpaPoints = 50;
-
-        const totalPoints = attPoints + cgpaPoints; // Max 100, higher = more risky
-
-        // Risk score IS the total points (higher = greater risk)
-        let riskScore: number;
-        let riskLevel: string;
-
-        if (!hasData) {
-          riskScore = 100;
-          riskLevel = 'high';
-        } else {
-          riskScore = totalPoints;
-          if (riskScore >= 60) riskLevel = 'high';
-          else if (riskScore >= 30) riskLevel = 'medium';
-          else riskLevel = 'low';
-        }
-
-        const factors: string[] = [];
-        if (hasData) {
-          if (avgAtt < 60) factors.push(`Critical attendance: ${avgAtt.toFixed(1)}%`);
-          else if (avgAtt < 70) factors.push(`Low attendance: ${avgAtt.toFixed(1)}%`);
-          else if (avgAtt < 75) factors.push(`Below avg attendance: ${avgAtt.toFixed(1)}%`);
-          if (cgpa > 0 && cgpa < 5.0) factors.push(`Critical CGPA: ${cgpa.toFixed(2)}`);
-          else if (cgpa > 0 && cgpa < 6.0) factors.push(`Low CGPA: ${cgpa.toFixed(2)}`);
-          else if (cgpa > 0 && cgpa < 7.0) factors.push(`Below avg CGPA: ${cgpa.toFixed(2)}`);
-        }
-
-        // Upsert risk assessment in background
-        db.riskAssessment.upsert({
-          where: { studentId: user.id },
-          update: { riskLevel, riskScore, factors: factors.join(', ') },
-          create: { studentId: user.id, riskLevel, riskScore, factors: factors.join(', ') }
-        }).catch(() => { });
-
+        const cached = riskMap.get(user.id);
         return {
           ...user,
-          riskLevel,
-          riskScore,
-          attendance: parseFloat(avgAtt.toFixed(1)),
-          cgpa,
-          totalPoints,
-          attPoints,
-          cgpaPoints,
-          factors: factors.join(', ')
+          riskLevel: cached?.riskLevel || 'low',
+          riskScore: cached?.riskScore || 0,
+          factors: cached?.factors || '',
         };
       });
     }
