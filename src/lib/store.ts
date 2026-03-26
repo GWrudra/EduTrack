@@ -222,9 +222,33 @@ export const useAppStore = create<AppState>()(
       timetableFilters: { section: null, semester: null },
 
       // Actions
-      setUser: (user) => set({ user, isAuthenticated: !!user }),
-      setToken: (token) => set({ token }),
-      logout: () => set({ user: null, isAuthenticated: false, token: null }),
+      setUser: (user) => {
+        if (typeof window !== 'undefined') {
+          if (user) {
+            localStorage.setItem('edutrack_user', JSON.stringify(user));
+          } else {
+            localStorage.removeItem('edutrack_user');
+          }
+        }
+        set({ user, isAuthenticated: !!user });
+      },
+      setToken: (token) => {
+        if (typeof window !== 'undefined') {
+          if (token) {
+            localStorage.setItem('edutrack_token', token);
+          } else {
+            localStorage.removeItem('edutrack_token');
+          }
+        }
+        set({ token });
+      },
+      logout: () => {
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('edutrack_user');
+          localStorage.removeItem('edutrack_token');
+        }
+        set({ user: null, isAuthenticated: false, token: null });
+      },
       setActiveTab: (activeTab) => set({ activeTab }),
       setSidebarOpen: (sidebarOpen) => set({ sidebarOpen }),
       toggleSidebarCollapsed: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),

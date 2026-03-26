@@ -40,6 +40,13 @@ const getOrdinal = (n: number) => {
   return n + (s[(v - 20) % 10] || s[v] || s[0]);
 };
 
+// Get proper name initial, skipping title prefixes like Dr., Prof., etc.
+const getInitial = (name: string | undefined | null): string => {
+  if (!name) return 'U';
+  const cleaned = name.replace(/^(Dr\.|Prof\.|Mr\.|Mrs\.|Ms\.)\s*/i, '').trim();
+  return (cleaned.charAt(0) || name.charAt(0)).toUpperCase();
+};
+
 // Map Academic Year (1-4) to a Semester (1-8) based on current month
 const getActiveSemester = (year: number | undefined) => {
   if (!year) return null;
@@ -88,7 +95,7 @@ if (typeof window !== 'undefined') {
 
 // ============ AUTH COMPONENTS ============
 
-function LoginPage({ onLogin }: { onLogin: (user: User) => void }) {
+function LoginPage({ onLogin }: { onLogin: (user: User, token: string) => void }) {
   const [collegeId, setCollegeId] = useState('');
   const [password, setPassword] = useState('');
   const [showForgot, setShowForgot] = useState(false);
@@ -108,7 +115,7 @@ function LoginPage({ onLogin }: { onLogin: (user: User) => void }) {
       const data = await res.json();
 
       if (data.success) {
-        onLogin(data.user);
+        onLogin(data.user, data.token);
         toast.success('Login successful!');
       } else {
         toast.error(data.message || 'Login failed');
@@ -422,7 +429,7 @@ function StudentDetailsDialog({ open, onOpenChange, student, onSendWarning, onAl
           <DialogTitle className="flex items-center gap-2">
             <Avatar className="w-10 h-10">
               <AvatarFallback className="bg-gradient-to-br from-slate-600 to-slate-700 text-white">
-                {student.name.charAt(0)}
+                {getInitial(student.name)}
               </AvatarFallback>
             </Avatar>
             <div>
@@ -852,7 +859,7 @@ function DailyQuoteCard() {
         <div className="flex items-start gap-3">
           <Avatar className="w-10 h-10 bg-slate-500">
             <AvatarFallback className="bg-slate-500 text-white font-bold">
-              {dailyQuote.author?.charAt(0) || 'Q'}
+              {getInitial(dailyQuote.author) || 'Q'}
             </AvatarFallback>
           </Avatar>
           <div className="flex-1 min-w-0">
@@ -939,7 +946,7 @@ function DesktopSidebar() {
             <div className="flex items-center gap-3">
               <Avatar className="w-10 h-10 ring-2 ring-slate-500/20">
                 <AvatarFallback className="bg-gradient-to-br from-slate-600 to-slate-700 text-white">
-                  {user?.name?.charAt(0) || 'U'}
+                  {getInitial(user?.name)}
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0">
@@ -1134,7 +1141,7 @@ function MobileHeader() {
             <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-xl">
               <Avatar className="w-12 h-12 ring-2 ring-slate-500/20">
                 <AvatarFallback className="bg-gradient-to-br from-slate-600 to-slate-700 text-white text-lg">
-                  {user?.name?.charAt(0) || 'U'}
+                  {getInitial(user?.name)}
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1">
@@ -2139,7 +2146,7 @@ function TimetablePage() {
 
     return entry ? entry.subject : '';
   };
-
+          
   const getSubjectColor = (subject: string) => {
     if (!subject) return 'bg-gray-50 dark:bg-gray-800/50';
     if (subject.includes('LAB')) return 'bg-purple-100 dark:bg-purple-900/30 border-purple-300 dark:border-purple-700';
@@ -3602,7 +3609,7 @@ function MessagesPage() {
                         <div className="flex items-center gap-2">
                           <Avatar className="w-6 h-6">
                             <AvatarFallback className="bg-slate-600 text-white text-xs">
-                              {teacher.name.charAt(0)}
+                              {getInitial(teacher.name)}
                             </AvatarFallback>
                           </Avatar>
                           <div>
@@ -4201,7 +4208,7 @@ function AdminUsersPage() {
           ) : (
             <div className="max-h-[500px] overflow-y-auto">
               <table className="w-full">
-                <thead className="sticky top-0 bg-white dark:bg-gray-900 border-b">
+                <thead className="sticky top-0 z-10 bg-white dark:bg-gray-900 border-b">
                   <tr>
                     <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground">User</th>
                     <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground">ID</th>
@@ -4226,7 +4233,7 @@ function AdminUsersPage() {
                               <AvatarFallback className={`text-white text-xs ${user.role === 'admin' ? 'bg-red-600' :
                                 user.role === 'faculty' ? 'bg-purple-600' : 'bg-slate-600'
                                 }`}>
-                                {user.name?.charAt(0)}
+                                {getInitial(user.name)}
                               </AvatarFallback>
                             </Avatar>
                             <div>
@@ -4286,7 +4293,7 @@ function AdminUsersPage() {
               <div className="flex items-center gap-4">
                 <Avatar className="w-16 h-16 ring-2 ring-slate-100">
                   <AvatarFallback className="text-2xl text-white bg-slate-600">
-                    {selectedUser.name?.charAt(0)}
+                    {getInitial(selectedUser.name)}
                   </AvatarFallback>
                 </Avatar>
                 <div>
@@ -5997,7 +6004,7 @@ function StudentsPage() {
               <div className="flex items-center gap-3">
                 <Avatar className="w-12 h-12">
                   <AvatarFallback className="bg-slate-500 text-white">
-                    {selectedStudent.name?.charAt(0)}
+                    {getInitial(selectedStudent.name)}
                   </AvatarFallback>
                 </Avatar>
                 <div>
@@ -6131,7 +6138,7 @@ function RiskAnalysisPage() {
                         <div className="flex items-center gap-2">
                           <Avatar className="w-8 h-8">
                             <AvatarFallback className="bg-red-500 text-white text-xs">
-                              {student.name.charAt(0)}
+                              {getInitial(student.name)}
                             </AvatarFallback>
                           </Avatar>
                           <div>
@@ -6195,7 +6202,7 @@ function RiskAnalysisPage() {
                         <div className="flex items-center gap-2">
                           <Avatar className="w-7 h-7">
                             <AvatarFallback className="bg-orange-500 text-white text-xs">
-                              {student.name.charAt(0)}
+                              {getInitial(student.name)}
                             </AvatarFallback>
                           </Avatar>
                           <div>
@@ -6791,8 +6798,25 @@ function MainApp() {
 // ============ ROOT PAGE ============
 
 export default function Page() {
-  const { user, setUser, setCourses, setAssignments, setExams, setMarks, setAttendance, setPoints, theme } = useAppStore();
+  const { user, setUser, setToken, setCourses, setAssignments, setExams, setMarks, setAttendance, setPoints, theme } = useAppStore();
   const [isLoading, setIsLoading] = useState(true);
+
+  // Restore session from localStorage on mount
+  useEffect(() => {
+    try {
+      const savedUser = localStorage.getItem('edutrack_user');
+      const savedToken = localStorage.getItem('edutrack_token');
+      if (savedUser && savedToken) {
+        const parsedUser = JSON.parse(savedUser);
+        setUser(parsedUser);
+        setToken(savedToken);
+      }
+    } catch (e) {
+      // Invalid data, clear it
+      localStorage.removeItem('edutrack_user');
+      localStorage.removeItem('edutrack_token');
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Apply theme on initial load
   useEffect(() => {
@@ -6850,12 +6874,13 @@ export default function Page() {
     initDemoData();
   }, [setCourses, setAssignments, setExams, setMarks, setAttendance, setPoints]);
 
-  const handleLogin = (loggedInUser: User) => {
+  const handleLogin = (loggedInUser: User, token: string) => {
     const userWithLoginTime = {
       ...loggedInUser,
       loginTime: new Date().toISOString()
     };
     setUser(userWithLoginTime);
+    setToken(token);
   };
 
   if (isLoading) {

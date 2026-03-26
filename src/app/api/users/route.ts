@@ -83,7 +83,6 @@ export async function GET(request: NextRequest) {
       usersWithRisk = users.map(user => {
         if (user.role !== 'student') return user;
 
-        // --- UNIFIED POINT CALCULATION (Deterministic) ---
         const userAttendance = attendance.filter(a => a.studentId === user.id);
         const avgAtt = userAttendance.length > 0
           ? userAttendance.reduce((sum, a) => sum + a.percentage, 0) / userAttendance.length
@@ -92,38 +91,59 @@ export async function GET(request: NextRequest) {
         const latestRecord = records.find(r => r.studentId === user.id);
         const cgpa = latestRecord?.cgpa || 0;
 
-        const cgpaPoints = Math.floor(cgpa * 25);
-        const attPoints = Math.floor(avgAtt * 0.4);
-        const totalPoints = cgpaPoints + attPoints;
-
-        // No-data fallback: if student has no attendance AND no academic records, can't assess → default low
         const hasData = userAttendance.length > 0 || latestRecord !== undefined;
 
+        // --- REVERSED TIERED POINT SYSTEM (higher points = higher risk) ---
+        // Attendance Risk Points (Max 50)
+        let attPoints = 0;
+        if (avgAtt >= 95) attPoints = 0;
+        else if (avgAtt >= 90) attPoints = 5;
+        else if (avgAtt >= 85) attPoints = 10;
+        else if (avgAtt >= 80) attPoints = 15;
+        else if (avgAtt >= 75) attPoints = 20;
+        else if (avgAtt >= 70) attPoints = 30;
+        else if (avgAtt >= 60) attPoints = 40;
+        else attPoints = 50;
+
+        // CGPA Risk Points (Max 50)
+        let cgpaPoints = 0;
+        if (cgpa >= 9.5) cgpaPoints = 0;
+        else if (cgpa >= 9.0) cgpaPoints = 5;
+        else if (cgpa >= 8.5) cgpaPoints = 10;
+        else if (cgpa >= 8.0) cgpaPoints = 15;
+        else if (cgpa >= 7.5) cgpaPoints = 20;
+        else if (cgpa >= 7.0) cgpaPoints = 25;
+        else if (cgpa >= 6.0) cgpaPoints = 35;
+        else if (cgpa >= 5.0) cgpaPoints = 45;
+        else cgpaPoints = 50;
+
+        const totalPoints = attPoints + cgpaPoints; // Max 100, higher = more risky
+
+        // Risk score IS the total points (higher = greater risk)
         let riskScore: number;
         let riskLevel: string;
 
         if (!hasData) {
-          // Student has no records yet — treat as low risk (unassessed)
-          riskScore = 70; // appears healthy on screen
-          riskLevel = 'low';
+          riskScore = 100;
+          riskLevel = 'high';
         } else {
-          riskScore = parseFloat(((totalPoints / 290) * 100).toFixed(1));
-          // Balanced thresholds:
-          // < 30%  → High   (serious issues in multiple factors)
-          // 30-54% → Medium (some concern in one or two areas)
-          // 55%+   → Low    (performing adequately)
-          if (riskScore < 30) riskLevel = 'high';
-          else if (riskScore < 55) riskLevel = 'medium';
+          riskScore = totalPoints;
+          if (riskScore >= 60) riskLevel = 'high';
+          else if (riskScore >= 30) riskLevel = 'medium';
           else riskLevel = 'low';
         }
 
         const factors: string[] = [];
         if (hasData) {
-          if (avgAtt < 75) factors.push(`Low attendance: ${avgAtt.toFixed(1)}%`);
-          if (cgpa > 0 && cgpa < 6.0) factors.push(`Low CGPA: ${cgpa.toFixed(2)}`);
+          if (avgAtt < 60) factors.push(`Critical attendance: ${avgAtt.toFixed(1)}%`);
+          else if (avgAtt < 70) factors.push(`Low attendance: ${avgAtt.toFixed(1)}%`);
+          else if (avgAtt < 75) factors.push(`Below avg attendance: ${avgAtt.toFixed(1)}%`);
+          if (cgpa > 0 && cgpa < 5.0) factors.push(`Critical CGPA: ${cgpa.toFixed(2)}`);
+          else if (cgpa > 0 && cgpa < 6.0) factors.push(`Low CGPA: ${cgpa.toFixed(2)}`);
+          else if (cgpa > 0 && cgpa < 7.0) factors.push(`Below avg CGPA: ${cgpa.toFixed(2)}`);
         }
 
-        // Upsert risk assessment in background (fire-and-forget)
+        // Upsert risk assessment in background
         db.riskAssessment.upsert({
           where: { studentId: user.id },
           update: { riskLevel, riskScore, factors: factors.join(', ') },
