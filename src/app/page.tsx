@@ -1218,7 +1218,7 @@ function StudentDashboard() {
           const sorted = filtered.sort((a: any, b: any) => (a.startTime || '').localeCompare(b.startTime || ''));
 
           // Merge identical consecutive subjects (e.g. 2rd classes/labs)
-          const merged = [];
+          const merged: any[] = [];
           for (let i = 0; i < sorted.length; i++) {
             const current = sorted[i];
             const last = merged[merged.length - 1];
