@@ -52,7 +52,7 @@ const getActiveSemester = (year: number | undefined) => {
   if (!year) return null;
   const month = new Date().getMonth(); // 0 is Jan, 2 is Mar
   const isEvenSemester = month >= 0 && month <= 5; // Jan to June
-  
+
   if (isEvenSemester) {
     return year * 2;
   } else {
@@ -2026,7 +2026,7 @@ function TimetablePage() {
         setSelectedBranch(section);
       }
     }
-    
+
     // Clear the filters after applying
     if (timetableFilters.section) {
       setTimetableFilters({ section: null, semester: null });
@@ -2121,9 +2121,9 @@ function TimetablePage() {
   const getSubjectForSlot = (day: string, section: string, timeObj: any) => {
     if (timeObj.isLunch) return 'LUNCH';
     // Try strict match first, then fallback to loose match
-    let entry = dbTimetable.find(e => 
-      e.dayName === day && 
-      e.section === section && 
+    let entry = dbTimetable.find(e =>
+      e.dayName === day &&
+      e.section === section &&
       e.startTime === timeObj.dbStart
     );
 
@@ -2146,7 +2146,7 @@ function TimetablePage() {
 
     return entry ? entry.subject : '';
   };
-          
+
   const getSubjectColor = (subject: string) => {
     if (!subject) return 'bg-gray-50 dark:bg-gray-800/50';
     if (subject.includes('LAB')) return 'bg-purple-100 dark:bg-purple-900/30 border-purple-300 dark:border-purple-700';
@@ -2377,17 +2377,63 @@ function TimetablePage() {
   );
 }
 
+// ============ INTERFACES ============
+
+interface CourseAttendance {
+  courseCode: string;
+  courseName: string;
+  totalClasses: number;
+  attended: number;
+  percent: number;
+  semester: number;
+}
+
+interface SemesterRecord {
+  id: string;
+  semester: number;
+  sgpa: number;
+  cgpa: number;
+  creditsEarned: number;
+  creditsTotal: number;
+  academicYear: string;
+}
+
+interface SubjectMarkData {
+  id: string;
+  semester: number;
+  subjectCode: string;
+  subjectName: string;
+  credits: number;
+  internalMarks: number;
+  externalMarks: number;
+  totalMarks: number;
+  grade: string;
+  gradePoints: number;
+}
+
+interface AttendanceRecord {
+  id: string;
+  semester: number;
+  subjectCode: string;
+  subjectName: string;
+  totalClasses: number;
+  attended: number;
+  percentage: number;
+}
+
 // ============ ATTENDANCE UPDATE PAGE (Faculty) ============
 
 function AttendanceUpdatePage() {
   const { courses, dataUpdateCounter, triggerDataUpdate } = useAppStore();
   const [selectedCourse, setSelectedCourse] = useState('');
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [topicCovered, setTopicCovered] = useState('');
   const [selectedBranch, setSelectedBranch] = useState('all');
   const [selectedSection, setSelectedSection] = useState('all');
   const [selectedYear, setSelectedYear] = useState('all');
   const [attendanceData, setAttendanceData] = useState<Record<string, 'present' | 'absent' | 'late'>>({});
   const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [students, setStudents] = useState<any[]>([]);
 
   // Fetch students from database
@@ -2459,13 +2505,15 @@ function AttendanceUpdatePage() {
         body: JSON.stringify({
           courseId: selectedCourse,
           date: selectedDate,
-          attendanceData
+          attendanceData,
+          topicCovered: topicCovered.trim() || undefined
         }),
       });
       const data = await res.json();
       if (data.success) {
         toast.success(`Attendance saved for ${selectedCourse} on ${selectedDate}`);
         setAttendanceData({});
+        setTopicCovered(''); // Clear after saving
         triggerDataUpdate();
       } else {
         toast.error(data.message || 'Failed to save attendance');
@@ -2474,6 +2522,32 @@ function AttendanceUpdatePage() {
       toast.error('Failed to save attendance');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const deleteAttendance = async () => {
+    if (!selectedCourse) {
+      toast.error('Please select a course first');
+      return;
+    }
+    if (!confirm(`Delete all attendance records for "${selectedCourse}" on ${selectedDate}?`)) return;
+
+    setIsDeleting(true);
+    try {
+      const params = new URLSearchParams({ courseId: selectedCourse, date: selectedDate });
+      const res = await fetch(`/api/attendance?${params}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (data.success) {
+        toast.success(data.message);
+        setAttendanceData({});
+        triggerDataUpdate();
+      } else {
+        toast.error(data.message || 'Failed to delete');
+      }
+    } catch (error) {
+      toast.error('Failed to delete attendance');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -2503,8 +2577,12 @@ function AttendanceUpdatePage() {
                   <SelectValue placeholder="Select course" />
                 </SelectTrigger>
                 <SelectContent>
-                  {courses.filter(c => !['LUNCH', 'BREAK'].includes(c.name.toUpperCase())).map(course => (
-                    <SelectItem key={course.id} value={course.id}>{course.name}</SelectItem>
+                  {/* Deduplicate courses by name */}
+                  {Array.from(new Set(courses
+                    .filter(c => !['LUNCH', 'BREAK'].includes(c.name.toUpperCase()))
+                    .map(c => c.name)
+                  )).sort().map(courseName => (
+                    <SelectItem key={courseName} value={courseName}>{courseName}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -2564,6 +2642,24 @@ function AttendanceUpdatePage() {
         </CardContent>
       </Card>
 
+      {/* Lesson Topic - Manual entry for faculty */}
+      <Card className="border-0 shadow-md rounded-2xl overflow-hidden mb-3">
+        <CardContent className="p-4">
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold flex items-center gap-1 text-slate-700">
+              <BookOpen className="w-3 h-3 text-blue-500" />
+              Lesson Topic / Course Covered (Optional)
+            </Label>
+            <Input 
+              placeholder="e.g. Introduction to Data Structures, Arrays and Pointers..." 
+              value={topicCovered}
+              onChange={(e) => setTopicCovered(e.target.value)}
+              className="rounded-xl border-slate-200 focus:border-blue-500 transition-all h-10 text-sm shadow-sm"
+            />
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Quick Actions */}
       <div className="flex flex-wrap gap-2">
         <Button variant="outline" size="sm" onClick={markAllPresent} className="rounded-xl">
@@ -2575,6 +2671,10 @@ function AttendanceUpdatePage() {
           Mark All Absent
         </Button>
         <div className="flex-1" />
+        <Button variant="outline" size="sm" onClick={deleteAttendance} disabled={isDeleting || !selectedCourse} className="rounded-xl border-red-200 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20">
+          <Trash2 className="w-4 h-4 mr-1" />
+          {isDeleting ? 'Deleting...' : 'Delete'}
+        </Button>
         <Button size="sm" onClick={saveAttendance} disabled={isSaving} className="rounded-xl">
           {isSaving ? 'Saving...' : 'Save Attendance'}
         </Button>
@@ -2687,6 +2787,7 @@ interface AttendanceDetailDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   course: CourseAttendance | null;
+  allLogs: any[];
 }
 
 interface ClassAttendanceRecord {
@@ -2698,37 +2799,22 @@ interface ClassAttendanceRecord {
   topicCovered: string;
 }
 
-function AttendanceDetailDialog({ open, onOpenChange, course }: AttendanceDetailDialogProps) {
-  // Generate mock class records for the course
+function AttendanceDetailDialog({ open, onOpenChange, course, allLogs }: AttendanceDetailDialogProps) {
+  // Get class records for the course from the logs
   const getClassRecords = (courseData: CourseAttendance): ClassAttendanceRecord[] => {
-    const records: ClassAttendanceRecord[] = [];
-    const topics = [
-      'Introduction and basics',
-      'Fundamental concepts',
-      'Core principles',
-      'Advanced topics',
-      'Practical applications',
-      'Case studies',
-      'Review session',
-      'Assessment',
-    ];
+    // Filter logs for this course
+    const relevantLogs = allLogs.filter(log => 
+      log.subject === courseData.courseCode || log.subject === courseData.courseName
+    ).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-    for (let i = 0; i < courseData.totalClasses; i++) {
-      const date = new Date();
-      date.setDate(date.getDate() - (courseData.totalClasses - i - 1) * 3);
-
-      // Randomly determine if present or absent based on attendance percentage
-      const isPresent = Math.random() * 100 < courseData.percent;
-
-      records.push({
-        id: `cr-${i}`,
-        date,
-        startTime: i % 2 === 0 ? '09:00' : '14:00',
-        endTime: i % 2 === 0 ? '10:40' : '15:40',
-        status: isPresent ? 'P' : 'A',
-        topicCovered: topics[i % topics.length],
-      });
-    }
+    const records = relevantLogs.map((log, i) => ({
+      id: log.id,
+      date: new Date(log.date),
+      startTime: '09:00', // Mock time
+      endTime: '10:40',
+      status: (log.status === 'present' || log.status === 'late' ? 'P' : 'A') as 'P' | 'A',
+      topicCovered: (log as any).topicCovered || ('Session ' + (relevantLogs.length - i))
+    }));
     return records;
   };
 
@@ -2825,48 +2911,6 @@ function AttendanceDetailDialog({ open, onOpenChange, course }: AttendanceDetail
 
 // ============ ATTENDANCE & CGPA PAGE (Student) ============
 
-interface CourseAttendance {
-  courseCode: string;
-  courseName: string;
-  totalClasses: number;
-  attended: number;
-  percent: number;
-  semester: number;
-}
-
-interface SemesterRecord {
-  id: string;
-  semester: number;
-  sgpa: number;
-  cgpa: number;
-  creditsEarned: number;
-  creditsTotal: number;
-  academicYear: string;
-}
-
-interface SubjectMarkData {
-  id: string;
-  semester: number;
-  subjectCode: string;
-  subjectName: string;
-  credits: number;
-  internalMarks: number;
-  externalMarks: number;
-  totalMarks: number;
-  grade: string;
-  gradePoints: number;
-}
-
-interface AttendanceRecord {
-  id: string;
-  semester: number;
-  subjectCode: string;
-  subjectName: string;
-  totalClasses: number;
-  attended: number;
-  percentage: number;
-}
-
 function AttendanceCGPAPage() {
   const { user, dataUpdateCounter, courses } = useAppStore();
   const [selectedSemester, setSelectedSemester] = useState('all');
@@ -2876,6 +2920,7 @@ function AttendanceCGPAPage() {
   const [loading, setLoading] = useState(true);
   const [semesterRecords, setSemesterRecords] = useState<SemesterRecord[]>([]);
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
+  const [attendanceLogs, setAttendanceLogs] = useState<any[]>([]);
   const [subjectMarks, setSubjectMarks] = useState<SubjectMarkData[]>([]);
   const [stats, setStats] = useState({ currentCGPA: 0, currentSGPA: 0, overallAttendance: 0, totalCredits: 0 });
 
@@ -2891,6 +2936,7 @@ function AttendanceCGPAPage() {
         if (data.success) {
           setSemesterRecords(data.data.semesterRecords || []);
           setAttendanceRecords(data.data.attendanceRecords || []);
+          setAttendanceLogs(data.data.attendanceLogs || []);
           setSubjectMarks(data.data.subjectMarks || []);
           setStats(data.data.stats || { currentCGPA: 0, currentSGPA: 0, overallAttendance: 0, totalCredits: 0 });
         }
@@ -3031,7 +3077,7 @@ function AttendanceCGPAPage() {
               <Award className="w-6 h-6 text-orange-600" />
             </div>
             <p className="text-xs text-muted-foreground">Credits</p>
-            <p className="text-2xl font-bold text-orange-600">{courses.reduce((sum, c) => sum + c.credits, 0)}</p>
+            <p className="text-2xl font-bold text-orange-600">{stats.totalCredits}</p>
           </CardContent>
         </Card>
       </div>
@@ -3258,10 +3304,11 @@ function AttendanceCGPAPage() {
       </div>
 
       {/* Attendance Detail Dialog */}
-      <AttendanceDetailDialog
-        open={showDetailDialog}
-        onOpenChange={setShowDetailDialog}
-        course={selectedCourse}
+      <AttendanceDetailDialog 
+        open={showDetailDialog} 
+        onOpenChange={setShowDetailDialog} 
+        course={selectedCourse} 
+        allLogs={attendanceLogs}
       />
     </div>
   );
@@ -4009,7 +4056,7 @@ function AdminUsersPage() {
       return;
     }
 
-    const headers = ['ID', 'Name', 'Role', 'Email', 'Phone', 'Branch/Dept', 'Joined At'];
+    const headers = ['ID', 'Name', 'Role', 'Email', 'Phone', 'Branch/Dept', 'Joined At', 'CGPA'];
     const rows = users.map(u => [
       u.collegeId,
       u.name,
@@ -4017,7 +4064,8 @@ function AdminUsersPage() {
       u.email || '-',
       u.phone || '-',
       u.branch || u.department || '-',
-      new Date(u.createdAt).toLocaleDateString()
+      new Date(u.createdAt).toLocaleDateString(),
+      u.cgpa || '0'
     ]);
 
     const csvContent = [headers.join(','), ...rows.map(row => row.map(val => `"${val}"`).join(','))].join('\n');
@@ -4411,8 +4459,9 @@ function AdminImportPage() {
   const studentCsvRef = useRef<HTMLInputElement>(null);
   const facultyCsvRef = useRef<HTMLInputElement>(null);
   const timetableRef = useRef<HTMLInputElement>(null);
+  const cgpaCsvRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
-  const [importType, setImportType] = useState<'students' | 'faculty' | 'timetable'>('students');
+  const [importType, setImportType] = useState<'students' | 'faculty' | 'timetable' | 'academic'>('students');
   const [importResult, setImportResult] = useState<{ success: number; failed: number; errors: string[] } | null>(null);
   const [showResultDialog, setShowResultDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState<'students' | 'faculty' | 'all' | null>(null);
@@ -4518,8 +4567,17 @@ CSE002,Priya Singh,priya@email.com,9876543212,CSE,B,1,parent.singh@email.com,987
 T001,Dr. Rajesh Sharma,rajesh@college.edu,9876543220,Computer Science,rajesh@faculty
 T002,Prof. Ananya Das,ananya@college.edu,9876543221,Mathematics,ananya@faculty`;
 
-  const downloadTemplate = (type: 'students' | 'faculty') => {
-    const template = type === 'students' ? studentCsvTemplate : facultyCsvTemplate;
+  const cgpaCsvTemplate = `collegeId,Sem,Subject Code,Subject Name,Subject Type,Credit,Grade
+CSE001,3,CSE-100,PROBLEM SOLVING USING C PROGRAMMING,Theory & Sessional,4,A
+CSE001,3,ECE-100,BASIC ELECTRONICS ENGINEERING,Theory & Sessional,4,B+
+CSE002,2,ENG-100,ENGLISH FOR TECHNICAL WRITING,Theory & Sessional,4,B+
+CSE002,2,PHY-100,APPLIED PHYSICS,Theory & Sessional,4,F`;
+
+  const downloadTemplate = (type: 'students' | 'faculty' | 'academic') => {
+    let template = studentCsvTemplate;
+    if (type === 'faculty') template = facultyCsvTemplate;
+    if (type === 'academic') template = cgpaCsvTemplate;
+
     const blob = new Blob([template], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -4579,6 +4637,50 @@ T002,Prof. Ananya Das,ananya@college.edu,9876543221,Mathematics,ananya@faculty`;
     // Reset file input
     if (fileInput) {
       fileInput.value = '';
+    }
+  };
+
+  const handleCgpaImport = async () => {
+    const file = cgpaCsvRef.current?.files?.[0];
+    if (!file) {
+      toast.error('Please select a CSV file');
+      return;
+    }
+
+    setImporting(true);
+    setImportResult(null);
+
+    try {
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        const csvData = event.target?.result as string;
+        try {
+          const res = await fetch('/api/academic/import', {
+            method: 'POST',
+            body: JSON.stringify({ data: csvData }),
+            headers: { 'Content-Type': 'application/json' },
+          });
+
+          const result = await res.json();
+          if (result.success) {
+            toast.success(result.message);
+            setImportResult(result.results);
+            setShowResultDialog(true);
+            triggerDataUpdate(); // Trigger global data refresh
+          } else {
+            toast.error(result.message || 'Import failed');
+          }
+        } catch (error) {
+          toast.error('Failed to import CGPA CSV');
+        } finally {
+          setImporting(false);
+          if (cgpaCsvRef.current) cgpaCsvRef.current.value = '';
+        }
+      };
+      reader.readAsText(file);
+    } catch (error) {
+      toast.error('Failed to read file');
+      setImporting(false);
     }
   };
 
@@ -4729,10 +4831,11 @@ T002,Prof. Ananya Das,ananya@college.edu,9876543221,Mathematics,ananya@faculty`;
 
       {/* Import Type Tabs */}
       <Tabs value={importType} onValueChange={(v) => setImportType(v as any)}>
-        <TabsList className="grid w-full grid-cols-3 rounded-xl">
-          <TabsTrigger value="students" className="rounded-lg text-xs">Students</TabsTrigger>
-          <TabsTrigger value="faculty" className="rounded-lg text-xs">Faculty</TabsTrigger>
-          <TabsTrigger value="timetable" className="rounded-lg text-xs">Timetable</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-4 rounded-xl overflow-x-auto h-auto">
+          <TabsTrigger value="students" className="rounded-lg text-xs py-2 whitespace-nowrap">Students</TabsTrigger>
+          <TabsTrigger value="faculty" className="rounded-lg text-xs py-2 whitespace-nowrap">Faculty</TabsTrigger>
+          <TabsTrigger value="timetable" className="rounded-lg text-xs py-2 whitespace-nowrap">Timetable</TabsTrigger>
+          <TabsTrigger value="academic" className="rounded-lg text-xs py-2 whitespace-nowrap">Academic Grades</TabsTrigger>
         </TabsList>
 
         {/* Students Import */}
@@ -4797,8 +4900,8 @@ T002,Prof. Ananya Das,ananya@college.edu,9876543221,Mathematics,ananya@faculty`;
               <p className="text-xs text-muted-foreground">
                 This process will recalculate risk assessments and Activity Points for all registered students based on their existing academic, attendance, and exam records.
               </p>
-              <Button 
-                onClick={handleInitializeAcademic} 
+              <Button
+                onClick={handleInitializeAcademic}
                 className="w-full rounded-xl bg-emerald-600 hover:bg-emerald-700 h-10"
                 disabled={initializingAcademic}
               >
@@ -4809,6 +4912,69 @@ T002,Prof. Ananya Das,ananya@college.edu,9876543221,Mathematics,ananya@faculty`;
                 )}
                 Initialize ALL Student Academic Records
               </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Academic CSV Import */}
+        <TabsContent value="academic" className="space-y-4 mt-4">
+          <Card className="border-0 shadow-md rounded-2xl">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <GraduationCap className="w-4 h-4 text-orange-600" />
+                Import Subject Grades
+              </CardTitle>
+              <CardDescription>Upload classic CSV format for subject-level results</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => downloadTemplate('academic')}
+                  className="rounded-xl flex-1"
+                >
+                  <Download className="w-4 h-4 mr-1" /> Template
+                </Button>
+                <input
+                  ref={cgpaCsvRef}
+                  type="file"
+                  accept=".csv"
+                  className="hidden"
+                  onChange={handleCgpaImport}
+                />
+                <Button
+                  size="sm"
+                  onClick={() => cgpaCsvRef.current?.click()}
+                  disabled={importing}
+                  className="rounded-xl flex-1 bg-orange-600 hover:bg-orange-700"
+                >
+                  {importing ? (
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-1" />
+                  ) : (
+                    <Upload className="w-4 h-4 mr-1" />
+                  )}
+                  Import CSV
+                </Button>
+              </div>
+
+              <div className="p-3 rounded-xl bg-gray-50 dark:bg-gray-800/50 text-xs text-muted-foreground space-y-2">
+                <div>
+                  <p className="font-semibold text-foreground">Format Instructions: Direct Subject Marks Upload</p>
+                  <p className="mt-1">This tool parses traditional subject result formats seamlessly. The SGPA/CGPA is <span className="font-semibold italic font-medium">auto-calculated</span> based on the individual credits and grades you upload! No initial CGPA or SGPA columns are required.</p>
+                </div>
+                <div>
+                  <p className="mt-2 text-primary font-medium">Required Columns:</p>
+                  <ul className="list-disc list-inside mt-1 ml-1 space-y-1">
+                    <li><span className="font-medium text-foreground">collegeId</span> (Must map to an existing student)</li>
+                    <li><span className="font-medium text-foreground">Subject Code</span> (e.g., CSE-100)</li>
+                    <li><span className="font-medium text-foreground">Grade</span> (e.g., A, B+, F(Th))</li>
+                  </ul>
+                  <p className="mt-3 text-emerald-700 dark:text-emerald-400 font-medium">Supported Optional Columns:</p>
+                  <p className="mt-1">Subject Name, Credit, Sem, Subject Type (Subject Type is safely ignored/skipped if you include it in the download).</p>
+                </div>
+                <p className="border-t border-gray-200 dark:border-gray-700 pt-2 text-black dark:text-gray-300">If <span className="font-semibold">Sem</span> is undefined, the imported grades map to the student's current active semester.</p>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -6154,7 +6320,7 @@ function RiskAnalysisPage() {
                           <div className="text-muted-foreground">Att</div>
                         </div>
                         <div className="bg-purple-100 dark:bg-purple-900/30 rounded p-1">
-                          <div className="font-semibold text-purple-700">{(student as any).cgpaPoints ?? 0}</div>
+                          <div className="font-semibold text-purple-700">{((student as any).cgpa ?? 0).toFixed(2)}</div>
                           <div className="text-muted-foreground">CGPA</div>
                         </div>
                         <div className="bg-green-100 dark:bg-green-900/30 rounded p-1">
@@ -6218,7 +6384,7 @@ function RiskAnalysisPage() {
                           <div className="text-muted-foreground">Att</div>
                         </div>
                         <div className="bg-purple-100 dark:bg-purple-900/30 rounded p-1">
-                          <div className="font-semibold text-purple-700">{(student as any).cgpaPoints ?? 0}</div>
+                          <div className="font-semibold text-purple-700">{((student as any).cgpa ?? 0).toFixed(2)}</div>
                           <div className="text-muted-foreground">CGPA</div>
                         </div>
                         <div className="bg-green-100 dark:bg-green-900/30 rounded p-1">

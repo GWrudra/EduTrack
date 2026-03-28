@@ -189,7 +189,7 @@ export async function POST(request: NextRequest) {
           sgpa = parseFloat((7.0 + Math.random() * 2.5).toFixed(2)); // 7.0-9.5 (good)
         }
         sgpa = Math.min(sgpa, 10);
-        
+
         const previousCGPA = semester === currentSem ? parseFloat((sgpa - 0.5 + Math.random()).toFixed(2)) : sgpa;
         const cgpa = semester === currentSem
           ? parseFloat(Math.min(((previousCGPA * (semester - 1) + sgpa) / semester), 10).toFixed(2))
@@ -321,7 +321,7 @@ export async function POST(request: NextRequest) {
         ? allAttendancePercentages.reduce((sum, val) => sum + val, 0) / allAttendancePercentages.length
         : 0;
 
-      // --- REVERSED TIERED POINT SYSTEM (higher points = higher risk) ---
+      // --- UNIFIED TIERED POINT SYSTEM (higher points = higher risk) ---
       // Attendance Risk Points (Max 50)
       let attPoints = 0;
       if (overallAvgAttendance >= 95) attPoints = 0;
@@ -345,19 +345,24 @@ export async function POST(request: NextRequest) {
       else if (latestCgpa >= 5.0) cgpaPoints = 45;
       else cgpaPoints = 50;
 
-      const totalPts = attPoints + cgpaPoints; // Max 100, higher = more risky
+      // Consistency Risk Points (Max 30)
+      let consistencyPoints = 0;
+      if (overallAvgAttendance < 75) consistencyPoints += 15;
+      if (latestCgpa < 6.0) consistencyPoints += 15;
 
-      // Risk score IS the total points
-      const riskScore = totalPts;
+      const totalPts = attPoints + cgpaPoints + consistencyPoints; // Max 130, higher = more risky
+
+      // Risk score is scaled to 100% based on 130 total points
+      const riskScore = (totalPts / 130) * 100;
       let riskLevel: 'low' | 'medium' | 'high' = 'low';
-      if (riskScore >= 60) riskLevel = 'high';
-      else if (riskScore >= 30) riskLevel = 'medium';
+      if (totalPts >= 60) riskLevel = 'high';
+      else if (totalPts >= 30) riskLevel = 'medium';
 
       const factors: string[] = [];
       if (overallAvgAttendance < 60) factors.push(`Critical Attendance: ${overallAvgAttendance.toFixed(1)}%`);
-      else if (overallAvgAttendance < 70) factors.push(`Low Attendance: ${overallAvgAttendance.toFixed(1)}%`);
+      else if (overallAvgAttendance < 75) factors.push(`Low Attendance: ${overallAvgAttendance.toFixed(1)}%`);
       if (latestCgpa < 5.0) factors.push(`Critical CGPA: ${latestCgpa.toFixed(2)}`);
-      else if (latestCgpa < 6.0) factors.push(`Low CGPA: ${latestCgpa.toFixed(2)}`);
+      else if (latestCgpa < 7.0) factors.push(`Low CGPA: ${latestCgpa.toFixed(2)}`);
 
       await db.riskAssessment.upsert({
         where: { studentId: student.id },
@@ -365,11 +370,19 @@ export async function POST(request: NextRequest) {
           studentId: student.id,
           riskScore,
           riskLevel,
+          attPoints,
+          cgpaPoints,
+          consistencyPoints,
+          totalPoints: totalPts,
           factors: factors.join(', '),
         },
         update: {
           riskScore,
           riskLevel,
+          attPoints,
+          cgpaPoints,
+          consistencyPoints,
+          totalPoints: totalPts,
           factors: factors.join(', '),
         }
       });
@@ -426,6 +439,8 @@ export async function GET(request: NextRequest) {
       }, { status: 400 });
     }
 
+    console.log('[DEBUG] Fetching academic for studentId:', studentId);
+
     // Get all semester records (to show full history in trends)
     let semesterRecords = await db.semesterRecord.findMany({
       where: { studentId },
@@ -433,11 +448,91 @@ export async function GET(request: NextRequest) {
       // take: 2, // Removed limit to show all history
     });
 
-    // Get attendance records
+    // Get pre-seeded attendance records from semesterAttendance table
     let attendanceRecords = await db.semesterAttendance.findMany({
       where: { studentId },
       orderBy: [{ semester: 'desc' }, { subjectCode: 'asc' }],
     });
+
+    // Also compute LIVE attendance from attendanceLog (faculty-marked daily attendance)
+    // This ensures attendance marked via the faculty page shows up for students
+    const dailyLogs = await db.attendanceLog.findMany({
+      where: { studentId },
+    });
+
+    // Group daily logs by subject and compute stats
+    const logsBySubject: Record<string, { total: number; attended: number }> = {};
+    for (const log of dailyLogs) {
+      // Handle the topic embedded in subject string
+      const realSubject = log.subject.includes(' | TOPIC: ') 
+        ? log.subject.split(' | TOPIC: ')[0] 
+        : log.subject;
+      
+      const topic = log.subject.includes(' | TOPIC: ') 
+        ? log.subject.split(' | TOPIC: ')[1] 
+        : '';
+      
+      // Store topic in log object so frontend can show it
+      (log as any).topicCovered = topic;
+      (log as any).subject = realSubject;
+
+      if (!logsBySubject[realSubject]) {
+        logsBySubject[realSubject] = { total: 0, attended: 0 };
+      }
+      logsBySubject[realSubject].total++;
+      if (log.status === 'present' || log.status === 'late') {
+        logsBySubject[realSubject].attended++;
+      }
+    }
+
+    // Get student info for semester
+    const student = await db.user.findUnique({
+      where: { id: studentId },
+      select: { year: true }
+    });
+    const studentSemester = (student?.year ? student.year * 2 : 4);
+
+    // Merge live log data into attendanceRecords
+    // For subjects in attendanceLog that ALREADY exist in semesterAttendance, update the counts
+    // For subjects in attendanceLog that DON'T exist in semesterAttendance, add new entries
+    const matchedSubjects = new Set<string>();
+
+    for (const rec of attendanceRecords) {
+      // Check if we have daily logs for this subject (by code or name)
+      const logKey = logsBySubject[rec.subjectCode] ? rec.subjectCode
+        : logsBySubject[rec.subjectName] ? rec.subjectName
+          : null;
+      if (logKey) {
+        const logStats = logsBySubject[logKey];
+        // Merge: add daily log counts on top of the seeded data
+        rec.totalClasses = rec.totalClasses + logStats.total;
+        rec.attended = rec.attended + logStats.attended;
+        rec.percentage = rec.totalClasses > 0
+          ? parseFloat(((rec.attended / rec.totalClasses) * 100).toFixed(1))
+          : 0;
+        matchedSubjects.add(logKey);
+      }
+    }
+
+    // Add subjects that only exist in attendanceLog (not in semesterAttendance)
+    for (const [subject, stats] of Object.entries(logsBySubject)) {
+      if (!matchedSubjects.has(subject)) {
+        const percentage = stats.total > 0 ? parseFloat(((stats.attended / stats.total) * 100).toFixed(1)) : 0;
+        attendanceRecords.push({
+          id: `live-${subject}`,
+          studentId,
+          semester: studentSemester,
+          subjectCode: subject,
+          subjectName: subject,
+          totalClasses: stats.total,
+          attended: stats.attended,
+          percentage,
+          academicYear: '2024-25',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        } as any);
+      }
+    }
 
     // Get subject marks
     let subjectMarks = await db.subjectMark.findMany({
@@ -458,7 +553,7 @@ export async function GET(request: NextRequest) {
     const currentCGPA = latestRecord?.cgpa || 0;
     const currentSGPA = latestRecord?.sgpa || 0;
 
-    // Calculate overall attendance
+    // Calculate overall attendance from the merged records
     const totalClasses = attendanceRecords.reduce((sum, r) => sum + r.totalClasses, 0);
     const totalAttended = attendanceRecords.reduce((sum, r) => sum + r.attended, 0);
     const overallAttendance = totalClasses > 0 ? parseFloat(((totalAttended / totalClasses) * 100).toFixed(1)) : 0;
@@ -494,6 +589,7 @@ export async function GET(request: NextRequest) {
       data: {
         semesterRecords,
         attendanceRecords,
+        attendanceLogs: dailyLogs,
         subjectMarks,
         points: {
           totalPoints,

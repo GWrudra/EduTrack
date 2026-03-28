@@ -1,0 +1,3 @@
+﻿src/app/api/import/route.ts(63,17): error TS2345: Argument of type 'Record<string, string>' is not assignable to parameter of type 'never'.
+src/app/api/screenshot/recognize/route.ts(54,62): error TS2345: Argument of type '{ messages: { role: "user"; content: ({ type: "text"; text: string; } | { type: "image_url"; image_url: { url: string; }; })[]; }[]; thinking: { type: "disabled"; }; }' is not assignable to parameter of type 'CreateChatCompletionVisionBody'.
+  Property 'model' is missing in type '{ messages: { role: "user"; content: ({ type: "text"; text: string; } | { type: "image_url"; image_url: { url: string; }; })[]; }[]; thinking: { type: "disabled"; }; }' but required in type 'CreateChatCompletionVisionBody'.

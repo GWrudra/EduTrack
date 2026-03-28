@@ -1,6 +1,7 @@
 // FORCE REBUILD - Unified Point System Verified
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+export const dynamic = 'force-dynamic';
 import bcrypt from 'bcryptjs';
 
 // GET: Fetch all users with optional role filter
@@ -72,15 +73,109 @@ export async function GET(request: NextRequest) {
 
       const riskMap = new Map(riskAssessments.map(r => [r.studentId, r]));
 
+      // Fetch the latest CGPA to display in Risk Analysis and Export outputs
+      const semesterRecords = await db.semesterRecord.findMany({
+        orderBy: { semester: 'desc' },
+        select: { studentId: true, cgpa: true }
+      });
+      const cgpaMap = new Map();
+      for (const rec of semesterRecords) {
+        if (!cgpaMap.has(rec.studentId)) {
+          cgpaMap.set(rec.studentId, rec.cgpa);
+        }
+      }
+
+      // Fetch LIVE attendance logs to merge with aggregated stats for real-time risk
+      const allLogs = await db.attendanceLog.findMany({
+        select: { studentId: true, status: true }
+      });
+      
+      const logsMap = new Map();
+      for (const log of allLogs) {
+        if (!logsMap.has(log.studentId)) logsMap.set(log.studentId, { attended: 0, total: 0 });
+        const stats = logsMap.get(log.studentId);
+        stats.total++;
+        if (log.status === 'present' || log.status === 'late') stats.attended++;
+      }
+
+      // Fetch aggregated attendance percentages
+      const semesterAttendance = await db.semesterAttendance.findMany({
+        select: { studentId: true, percentage: true }
+      });
+      
+      const attMap = new Map();
+      for (const att of semesterAttendance) {
+        if (!attMap.has(att.studentId)) attMap.set(att.studentId, []);
+        attMap.get(att.studentId).push(att.percentage);
+      }
+
       usersWithRisk = users.map(user => {
         if (user.role !== 'student') return user;
 
         const cached = riskMap.get(user.id);
+        const cgpa = cgpaMap.get(user.id) || 0;
+        
+        // Calculate Live Attendance
+        const liveLogs = logsMap.get(user.id) || { attended: 0, total: 0 };
+        const liveLogAvg = liveLogs.total > 0 ? (liveLogs.attended / liveLogs.total * 100) : 0;
+        
+        const studentAtts = attMap.get(user.id) || [];
+        // Combined average: prioritize live logs if they have more data, or average them out
+        const avgAtt = liveLogAvg > 0 ? liveLogAvg : (studentAtts.length > 0 
+          ? studentAtts.reduce((a: number, b: number) => a + b, 0) / studentAtts.length 
+          : 0);
+        
+        let attPoints = 0;
+        if (avgAtt >= 95) attPoints = 0;
+        else if (avgAtt >= 90) attPoints = 5;
+        else if (avgAtt >= 85) attPoints = 10;
+        else if (avgAtt >= 80) attPoints = 15;
+        else if (avgAtt >= 75) attPoints = 20;
+        else if (avgAtt >= 70) attPoints = 30;
+        else if (avgAtt >= 60) attPoints = 40;
+        else attPoints = 50;
+
+        // Calculate CGPA Points (Max 50)
+        let cgpaPoints = 0;
+        if (cgpa >= 9.5) cgpaPoints = 0;
+        else if (cgpa >= 9.0) cgpaPoints = 5;
+        else if (cgpa >= 8.5) cgpaPoints = 10;
+        else if (cgpa >= 8.0) cgpaPoints = 15;
+        else if (cgpa >= 7.5) cgpaPoints = 20;
+        else if (cgpa >= 7.0) cgpaPoints = 25;
+        else if (cgpa >= 6.0) cgpaPoints = 35;
+        else if (cgpa >= 5.0) cgpaPoints = 45;
+        else cgpaPoints = 50;
+
+        // Calculate Consistency Points (Max 30)
+        // Rule: Lose 15 points if avgAtt < 75%, Lose 15 points if cgpa < 6.0
+        let consistencyPoints = 0;
+        if (avgAtt < 75) consistencyPoints += 15;
+        if (cgpa < 6.0) consistencyPoints += 15;
+
+        const totalPoints = attPoints + cgpaPoints + consistencyPoints;
+        // Calculate consistency score scaled to 100%
+        const liveRiskScore = (totalPoints / 130) * 100;
+        const liveRiskLevel = totalPoints >= 60 ? 'high' : totalPoints >= 30 ? 'medium' : 'low';
+
+        // Generate detailed risk factors on the fly
+        const liveFactors: string[] = [];
+        if (avgAtt < 60) liveFactors.push(`Critical Attendance: ${avgAtt.toFixed(1)}%`);
+        else if (avgAtt < 75) liveFactors.push(`Low Attendance: ${avgAtt.toFixed(1)}%`);
+        if (cgpa < 5.0) liveFactors.push(`Critical CGPA: ${cgpa.toFixed(2)}`);
+        else if (cgpa < 7.0) liveFactors.push(`Low CGPA: ${cgpa.toFixed(2)}`);
+
         return {
           ...user,
-          riskLevel: cached?.riskLevel || 'low',
-          riskScore: cached?.riskScore || 0,
-          factors: cached?.factors || '',
+          riskLevel: liveRiskLevel, // Prioritize live calculation
+          riskScore: liveRiskScore, // Prioritize live calculation
+          factors: liveFactors.length > 0 ? liveFactors.join(', ') : (cached?.factors || 'Healthy academic record'), 
+          cgpa: cgpa,
+          attendance: avgAtt,
+          attPoints,
+          cgpaPoints,
+          consistencyPoints,
+          totalPoints,
         };
       });
     }
@@ -118,7 +213,7 @@ export async function PATCH(request: NextRequest) {
     const { id, password, name, email, phone, branch, section, year, department, parentEmail, parentPhone } = body;
 
     if (!id) {
-       return NextResponse.json({ success: false, message: 'User ID is required' }, { status: 400 });
+      return NextResponse.json({ success: false, message: 'User ID is required' }, { status: 400 });
     }
 
     const data: any = {};

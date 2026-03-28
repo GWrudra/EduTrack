@@ -32,13 +32,14 @@ model User {
 }
 
 model AttendanceLog {
-  id        String   @id @default(cuid())
-  studentId String
-  subject   String
-  status    String
-  date      DateTime
-  createdAt DateTime @default(now())
-  student   User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  id           String   @id @default(cuid())
+  studentId    String
+  subject      String
+  status       String
+  date         DateTime
+  topicCovered String?
+  createdAt    DateTime @default(now())
+  student      User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
   @@index([studentId, date])
 }
@@ -228,14 +229,18 @@ model Notification {
 }
 
 model RiskAssessment {
-  id           String   @id @default(cuid())
-  studentId    String   @unique
-  riskScore    Float    @default(0)
-  riskLevel    String   @default("low")
-  factors      String?
-  lastAssessed DateTime @default(now())
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id                String   @id @default(cuid())
+  studentId         String   @unique
+  riskScore         Float    @default(0)
+  riskLevel         String   @default("low")
+  attPoints         Float    @default(0)
+  cgpaPoints        Float    @default(0)
+  consistencyPoints Float    @default(0)
+  totalPoints       Float    @default(0)
+  factors           String?
+  lastAssessed      DateTime @default(now())
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 }
 
 model DailyQuote {

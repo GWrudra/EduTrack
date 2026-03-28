@@ -7,7 +7,7 @@ function parseCSV(csvString: string) {
   // Normalize line endings
   const normalized = csvString.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
   const lines = normalized.trim().split('\n');
-  
+
   if (lines.length < 2) {
     throw new Error('CSV file must have at least a header row and one data row');
   }
@@ -17,10 +17,10 @@ function parseCSV(csvString: string) {
     const result: string[] = [];
     let current = '';
     let inQuotes = false;
-    
+
     for (let i = 0; i < line.length; i++) {
       const char = line[i];
-      
+
       if (char === '"') {
         if (inQuotes && line[i + 1] === '"') {
           // Escaped quote
@@ -38,22 +38,22 @@ function parseCSV(csvString: string) {
         current += char;
       }
     }
-    
+
     // Add last field
     result.push(current.trim());
-    
+
     return result;
   };
 
   // Parse header
   const headers = parseCSVLine(lines[0]).map(h => h.toLowerCase().replace(/['"]/g, '').trim());
-  
+
   // Parse data rows
   const data = [];
   for (let i = 1; i < lines.length; i++) {
     const line = lines[i].trim();
     if (!line) continue; // Skip empty lines
-    
+
     const values = parseCSVLine(line);
     if (values.length >= Math.max(1, headers.length - 2)) { // Allow some flexibility
       const row: Record<string, string> = {};
@@ -63,7 +63,7 @@ function parseCSV(csvString: string) {
       data.push(row);
     }
   }
-  
+
   return data;
 }
 
@@ -114,9 +114,9 @@ export async function POST(request: NextRequest) {
     }
 
     if (mode === 'replace') {
-       await db.user.deleteMany({
-         where: { role: type === 'students' ? 'student' : 'faculty' }
-       });
+      await db.user.deleteMany({
+        where: { role: type === 'students' ? 'student' : 'faculty' }
+      });
     }
 
     // Parse CSV data
@@ -148,7 +148,7 @@ export async function POST(request: NextRequest) {
       for (const record of records) {
         try {
           const student = mapStudentColumns(record);
-          
+
           if (!student.collegeId || !student.name) {
             results.failed++;
             results.errors.push(`Missing fields (collegeId/name) for record: ${JSON.stringify(record)}`);
@@ -183,7 +183,7 @@ export async function POST(request: NextRequest) {
               parentPhone: student.parentPhone || null,
             }
           });
-          
+
           results.success++;
         } catch (error: any) {
           results.failed++;
@@ -194,7 +194,7 @@ export async function POST(request: NextRequest) {
       for (const record of records) {
         try {
           const faculty = mapFacultyColumns(record);
-          
+
           if (!faculty.collegeId || !faculty.name) {
             results.failed++;
             results.errors.push(`Missing fields (collegeId/name) for record: ${JSON.stringify(record)}`);
@@ -221,7 +221,7 @@ export async function POST(request: NextRequest) {
               department: faculty.department || null,
             }
           });
-          
+
           results.success++;
         } catch (error: any) {
           results.failed++;
