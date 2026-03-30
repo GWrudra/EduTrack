@@ -2,6 +2,20 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAppStore, User, Course, Assignment, Exam, Mark, StudentRiskInfo, Message, DailyQuote } from '@/lib/store';
+import { toast } from 'sonner';
+import {
+  Chart as ChartJS,
+  ArcElement,
+  Tooltip,
+  Legend,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  Title
+} from 'chart.js';
+import { Doughnut, Line as LineChart, Bar as BarChart } from 'react-chartjs-2';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -72,21 +86,6 @@ const getBatchFromId = (id: string | undefined) => {
   }
   return '2024';
 };
-
-import { toast } from 'sonner';
-import {
-  Chart as ChartJS,
-  ArcElement,
-  Tooltip,
-  Legend,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  BarElement,
-  Title
-} from 'chart.js';
-import { Doughnut, Line as LineChart, Bar as BarChart } from 'react-chartjs-2';
 
 // Register Chart.js components
 if (typeof window !== 'undefined') {
@@ -694,7 +693,7 @@ function PointsPage() {
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             {scorecardData.map((item) => (
               <div key={item.label} className={`p-4 rounded-xl ${item.bg} text-center`}>
-                <p className="text-2xl font-bold {item.color}">{item.value}</p>
+                <p className={`text-2xl font-bold ${item.color}`}>{item.value}</p>
                 <p className="text-xs text-muted-foreground mt-1">{item.label}</p>
               </div>
             ))}
@@ -2434,7 +2433,9 @@ function AttendanceUpdatePage() {
   const [attendanceData, setAttendanceData] = useState<Record<string, 'present' | 'absent' | 'late'>>({});
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [students, setStudents] = useState<any[]>([]);
+  const attendanceCsvRef = useRef<HTMLInputElement>(null);
 
   // Fetch students from database
   useEffect(() => {
@@ -2523,6 +2524,59 @@ function AttendanceUpdatePage() {
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleCsvUpload = async () => {
+    const file = attendanceCsvRef.current?.files?.[0];
+    if (!file) {
+      toast.error('Please select a CSV file');
+      return;
+    }
+
+    setImporting(true);
+    try {
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        const csvData = event.target?.result as string;
+        try {
+          const res = await fetch('/api/attendance/import', {
+            method: 'POST',
+            body: JSON.stringify({ data: csvData }),
+            headers: { 'Content-Type': 'application/json' },
+          });
+
+          const result = await res.json();
+          if (result.success) {
+            toast.success(result.message);
+            triggerDataUpdate(); // Refresh global data
+          } else {
+            toast.error(result.message || 'Import failed');
+          }
+        } catch (error) {
+          toast.error('Failed to upload CSV');
+        } finally {
+          setImporting(false);
+          if (attendanceCsvRef.current) attendanceCsvRef.current.value = '';
+        }
+      };
+      reader.readAsText(file);
+    } catch (error) {
+      toast.error('Failed to read file');
+      setImporting(false);
+    }
+  };
+
+  const downloadFacultyTemplate = () => {
+    const template = `collegeId,date,subject,status,topicCovered
+CSE001,${new Date().toISOString().split('T')[0]},${selectedCourse || 'SUBJECT_CODE'},present,First Session
+CSE002,${new Date().toISOString().split('T')[0]},${selectedCourse || 'SUBJECT_CODE'},absent,`;
+    const blob = new Blob([template], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `attendance_template.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const deleteAttendance = async () => {
@@ -2671,6 +2725,20 @@ function AttendanceUpdatePage() {
           Mark All Absent
         </Button>
         <div className="flex-1" />
+        <Button variant="outline" size="sm" onClick={downloadFacultyTemplate} className="rounded-xl">
+          <Download className="w-4 h-4 mr-1" /> Template
+        </Button>
+        <input
+          ref={attendanceCsvRef}
+          type="file"
+          accept=".csv"
+          className="hidden"
+          onChange={handleCsvUpload}
+        />
+        <Button variant="outline" size="sm" onClick={() => attendanceCsvRef.current?.click()} disabled={importing} className="rounded-xl border-blue-200 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20">
+          <Upload className="w-4 h-4 mr-1" />
+          {importing ? 'Uploading...' : 'Bulk Upload (CSV)'}
+        </Button>
         <Button variant="outline" size="sm" onClick={deleteAttendance} disabled={isDeleting || !selectedCourse} className="rounded-xl border-red-200 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20">
           <Trash2 className="w-4 h-4 mr-1" />
           {isDeleting ? 'Deleting...' : 'Delete'}
@@ -4460,8 +4528,9 @@ function AdminImportPage() {
   const facultyCsvRef = useRef<HTMLInputElement>(null);
   const timetableRef = useRef<HTMLInputElement>(null);
   const cgpaCsvRef = useRef<HTMLInputElement>(null);
+  const attendanceCsvRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
-  const [importType, setImportType] = useState<'students' | 'faculty' | 'timetable' | 'academic'>('students');
+  const [importType, setImportType] = useState<'students' | 'faculty' | 'timetable' | 'academic' | 'attendance'>('students');
   const [importResult, setImportResult] = useState<{ success: number; failed: number; errors: string[] } | null>(null);
   const [showResultDialog, setShowResultDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState<'students' | 'faculty' | 'all' | null>(null);
@@ -4573,10 +4642,16 @@ CSE001,3,ECE-100,BASIC ELECTRONICS ENGINEERING,Theory & Sessional,4,B+
 CSE002,2,ENG-100,ENGLISH FOR TECHNICAL WRITING,Theory & Sessional,4,B+
 CSE002,2,PHY-100,APPLIED PHYSICS,Theory & Sessional,4,F`;
 
-  const downloadTemplate = (type: 'students' | 'faculty' | 'academic') => {
+  const attendanceCsvTemplate = `collegeId,date,subject,status,topicCovered
+CSE001,2024-03-29,CC,present,Introduction to Data Structures
+CSE001,2024-03-30,CC,absent,
+CSE002,2024-03-29,DS,late,Sorting Algorithms Part 1`;
+
+  const downloadTemplate = (type: 'students' | 'faculty' | 'academic' | 'attendance') => {
     let template = studentCsvTemplate;
     if (type === 'faculty') template = facultyCsvTemplate;
     if (type === 'academic') template = cgpaCsvTemplate;
+    if (type === 'attendance') template = attendanceCsvTemplate;
 
     const blob = new Blob([template], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
@@ -4675,6 +4750,50 @@ CSE002,2,PHY-100,APPLIED PHYSICS,Theory & Sessional,4,F`;
         } finally {
           setImporting(false);
           if (cgpaCsvRef.current) cgpaCsvRef.current.value = '';
+        }
+      };
+      reader.readAsText(file);
+    } catch (error) {
+      toast.error('Failed to read file');
+      setImporting(false);
+    }
+  };
+
+  const handleAttendanceImport = async () => {
+    const file = attendanceCsvRef.current?.files?.[0];
+    if (!file) {
+      toast.error('Please select a CSV file');
+      return;
+    }
+
+    setImporting(true);
+    setImportResult(null);
+
+    try {
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        const csvData = event.target?.result as string;
+        try {
+          const res = await fetch('/api/attendance/import', {
+            method: 'POST',
+            body: JSON.stringify({ data: csvData }),
+            headers: { 'Content-Type': 'application/json' },
+          });
+
+          const result = await res.json();
+          if (result.success) {
+            toast.success(result.message);
+            setImportResult(result.results);
+            setShowResultDialog(true);
+            triggerDataUpdate(); // Trigger global update
+          } else {
+            toast.error(result.message || 'Import failed');
+          }
+        } catch (error) {
+          toast.error('Failed to import Attendance CSV');
+        } finally {
+          setImporting(false);
+          if (attendanceCsvRef.current) attendanceCsvRef.current.value = '';
         }
       };
       reader.readAsText(file);
@@ -4831,11 +4950,12 @@ CSE002,2,PHY-100,APPLIED PHYSICS,Theory & Sessional,4,F`;
 
       {/* Import Type Tabs */}
       <Tabs value={importType} onValueChange={(v) => setImportType(v as any)}>
-        <TabsList className="grid w-full grid-cols-4 rounded-xl overflow-x-auto h-auto">
+        <TabsList className="grid w-full grid-cols-5 rounded-xl overflow-x-auto h-auto">
           <TabsTrigger value="students" className="rounded-lg text-xs py-2 whitespace-nowrap">Students</TabsTrigger>
           <TabsTrigger value="faculty" className="rounded-lg text-xs py-2 whitespace-nowrap">Faculty</TabsTrigger>
           <TabsTrigger value="timetable" className="rounded-lg text-xs py-2 whitespace-nowrap">Timetable</TabsTrigger>
           <TabsTrigger value="academic" className="rounded-lg text-xs py-2 whitespace-nowrap">Academic Grades</TabsTrigger>
+          <TabsTrigger value="attendance" className="rounded-lg text-xs py-2 whitespace-nowrap">Attendance</TabsTrigger>
         </TabsList>
 
         {/* Students Import */}
@@ -5025,6 +5145,57 @@ CSE002,2,PHY-100,APPLIED PHYSICS,Theory & Sessional,4,F`;
                 <p className="font-medium text-foreground mb-1">Required columns:</p>
                 <p><span className="text-red-500 font-medium">collegeId*</span>, <span className="text-red-500 font-medium">name*</span>, <span className="text-red-500 font-medium">password*</span>, email, phone, department</p>
                 <p className="mt-1 text-yellow-600">* Password is required for each faculty member</p>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Attendance CSV Import */}
+        <TabsContent value="attendance" className="space-y-4 mt-4">
+          <Card className="border-0 shadow-md rounded-2xl">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-blue-600" />
+                Import Daily Attendance
+              </CardTitle>
+              <CardDescription>Upload daily attendance logs for students</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => downloadTemplate('attendance')}
+                  className="rounded-xl flex-1"
+                >
+                  <Download className="w-4 h-4 mr-1" /> Template
+                </Button>
+                <input
+                  ref={attendanceCsvRef}
+                  type="file"
+                  accept=".csv"
+                  className="hidden"
+                  onChange={handleAttendanceImport}
+                />
+                <Button
+                  size="sm"
+                  onClick={() => attendanceCsvRef.current?.click()}
+                  disabled={importing}
+                  className="rounded-xl flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  {importing ? (
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-1" />
+                  ) : (
+                    <Upload className="w-4 h-4 mr-1" />
+                  )}
+                  Import Attendance
+                </Button>
+              </div>
+
+              <div className="p-3 rounded-xl bg-gray-50 dark:bg-gray-800/50 text-xs text-muted-foreground">
+                <p className="font-medium text-foreground mb-1">Required columns:</p>
+                <p><span className="text-blue-500 font-medium">collegeId*</span>, <span className="text-blue-500 font-medium">date*</span>, <span className="text-blue-500 font-medium">subject*</span>, <span className="text-blue-500 font-medium">status*</span>, topicCovered</p>
+                <p className="mt-1">Date format: YYYY-MM-DD. Status: present / absent / late</p>
               </div>
             </CardContent>
           </Card>

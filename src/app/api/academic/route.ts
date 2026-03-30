@@ -439,7 +439,7 @@ export async function GET(request: NextRequest) {
       }, { status: 400 });
     }
 
-    console.log('[DEBUG] Fetching academic for studentId:', studentId);
+
 
     // Get all semester records (to show full history in trends)
     let semesterRecords = await db.semesterRecord.findMany({
@@ -463,19 +463,7 @@ export async function GET(request: NextRequest) {
     // Group daily logs by subject and compute stats
     const logsBySubject: Record<string, { total: number; attended: number }> = {};
     for (const log of dailyLogs) {
-      // Handle the topic embedded in subject string
-      const realSubject = log.subject.includes(' | TOPIC: ') 
-        ? log.subject.split(' | TOPIC: ')[0] 
-        : log.subject;
-      
-      const topic = log.subject.includes(' | TOPIC: ') 
-        ? log.subject.split(' | TOPIC: ')[1] 
-        : '';
-      
-      // Store topic in log object so frontend can show it
-      (log as any).topicCovered = topic;
-      (log as any).subject = realSubject;
-
+      const realSubject = log.subject;
       if (!logsBySubject[realSubject]) {
         logsBySubject[realSubject] = { total: 0, attended: 0 };
       }

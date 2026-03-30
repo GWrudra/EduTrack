@@ -31,21 +31,22 @@ export async function POST(request: NextRequest) {
         }
       });
 
-      // Embed topic into subject field to avoid schema lock issues
-      const finalSubject = topicCovered ? `${courseId} | TOPIC: ${topicCovered}` : courseId;
-
       if (existingLog) {
         await db.attendanceLog.update({
           where: { id: existingLog.id },
-          data: { status }
+          data: { 
+            status,
+            topicCovered: topicCovered || undefined
+          }
         });
       } else {
         await db.attendanceLog.create({
           data: {
             studentId: sid,
-            subject: finalSubject,
+            subject: courseId,
             status,
-            date: attendanceDate
+            date: attendanceDate,
+            topicCovered: topicCovered || ''
           }
         });
       }
