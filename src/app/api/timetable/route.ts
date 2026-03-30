@@ -7,11 +7,12 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const section = searchParams.get('section');
     const dayOfWeek = searchParams.get('day');
+    const semester = searchParams.get('semester');
 
     const where: any = {};
 
     if (section && section !== 'all') {
-      where.section = section;
+      where.section = { contains: section };
     }
 
     if (dayOfWeek && dayOfWeek !== 'all') {
@@ -26,17 +27,27 @@ export async function GET(request: NextRequest) {
       ]
     });
 
-    // Get unique sections
-    const sections = await db.timetableEntry.findMany({
-      distinct: ['section'],
-      select: { section: true },
-      orderBy: { section: 'asc' }
+    // Get unique section/semester combinations for admin overview
+    const summaries = await db.timetableEntry.findMany({
+      distinct: ['section', 'semester'],
+      select: { section: true, semester: true },
+      orderBy: [
+        { semester: 'asc' },
+        { section: 'asc' }
+      ]
     });
+    
+    // Also keep the simple sections list for legacy compatibility
+    const sections = [...new Set(summaries.map(s => s.section))].sort();
 
     return NextResponse.json({
       success: true,
       entries,
-      sections: sections.map(s => s.section)
+      sections,
+      summaries: summaries.map(s => ({
+        section: s.section,
+        semester: s.semester
+      }))
     });
   } catch (error) {
     console.error('Error fetching timetable:', error);

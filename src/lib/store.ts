@@ -6,7 +6,7 @@ export interface User {
   id: string;
   collegeId: string;
   name: string;
-  role: 'student' | 'faculty';
+  role: 'student' | 'faculty' | 'admin';
   email?: string;
   phone?: string;
   branch?: string;
@@ -140,6 +140,9 @@ interface AppState {
   messages: Message[];
   dailyQuote: DailyQuote;
 
+  // Timetable quick view filters
+  timetableFilters: { section: string | null; semester: number | null };
+
   // Actions
   setUser: (user: User | null) => void;
   setToken: (token: string | null) => void;
@@ -168,6 +171,7 @@ interface AppState {
   addMessage: (message: Message) => void;
   fetchMessages: () => Promise<void>;
   setDailyQuote: (quote: DailyQuote) => void;
+  setTimetableFilters: (filters: { section: string | null; semester: number | null }) => void;
   exportData: () => string;
   importData: (data: string) => boolean;
 }
@@ -211,15 +215,40 @@ export const useAppStore = create<AppState>()(
       exams: [],
       marks: [],
       attendance: [],
-      points: { totalPoints: 100, socialPoints: 0, academicPoints: 0 },
+      points: { totalPoints: 0, socialPoints: 0, academicPoints: 0 },
       riskStudents: [],
       messages: [],
       dailyQuote: getRandomQuote(),
+      timetableFilters: { section: null, semester: null },
 
       // Actions
-      setUser: (user) => set({ user, isAuthenticated: !!user }),
-      setToken: (token) => set({ token }),
-      logout: () => set({ user: null, isAuthenticated: false, token: null }),
+      setUser: (user) => {
+        if (typeof window !== 'undefined') {
+          if (user) {
+            localStorage.setItem('edutrack_user', JSON.stringify(user));
+          } else {
+            localStorage.removeItem('edutrack_user');
+          }
+        }
+        set({ user, isAuthenticated: !!user });
+      },
+      setToken: (token) => {
+        if (typeof window !== 'undefined') {
+          if (token) {
+            localStorage.setItem('edutrack_token', token);
+          } else {
+            localStorage.removeItem('edutrack_token');
+          }
+        }
+        set({ token });
+      },
+      logout: () => {
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('edutrack_user');
+          localStorage.removeItem('edutrack_token');
+        }
+        set({ user: null, isAuthenticated: false, token: null });
+      },
       setActiveTab: (activeTab) => set({ activeTab }),
       setSidebarOpen: (sidebarOpen) => set({ sidebarOpen }),
       toggleSidebarCollapsed: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
@@ -264,6 +293,7 @@ export const useAppStore = create<AppState>()(
         }
       },
       setDailyQuote: (dailyQuote) => set({ dailyQuote }),
+      setTimetableFilters: (timetableFilters) => set({ timetableFilters }),
       exportData: () => {
         const state = get();
         return JSON.stringify({

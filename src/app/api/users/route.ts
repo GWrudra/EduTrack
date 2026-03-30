@@ -1,5 +1,8 @@
+// FORCE REBUILD - Unified Point System Verified
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+export const dynamic = 'force-dynamic';
+import bcrypt from 'bcryptjs';
 
 // GET: Fetch all users with optional role filter
 export async function GET(request: NextRequest) {
@@ -56,148 +59,123 @@ export async function GET(request: NextRequest) {
       ]
     });
 
-    // If role is student or all, fetch risk assessments and merge
+    // Read cached risk assessments from DB (calculated during academic data seeding)
     let usersWithRisk = users;
-    if (!role || role === 'student') {
-      const attendance = await db.semesterAttendance.findMany({
+    if (!role || role === 'all' || role === 'student') {
+      const riskAssessments = await db.riskAssessment.findMany({
+        select: {
+          studentId: true,
+          riskLevel: true,
+          riskScore: true,
+          factors: true,
+        }
+      });
+
+      const riskMap = new Map(riskAssessments.map(r => [r.studentId, r]));
+
+      // Fetch the latest CGPA to display in Risk Analysis and Export outputs
+      const semesterRecords = await db.semesterRecord.findMany({
+        orderBy: { semester: 'desc' },
+        select: { studentId: true, cgpa: true }
+      });
+      const cgpaMap = new Map();
+      for (const rec of semesterRecords) {
+        if (!cgpaMap.has(rec.studentId)) {
+          cgpaMap.set(rec.studentId, rec.cgpa);
+        }
+      }
+
+      // Fetch LIVE attendance logs to merge with aggregated stats for real-time risk
+      const allLogs = await db.attendanceLog.findMany({
+        select: { studentId: true, status: true }
+      });
+      
+      const logsMap = new Map();
+      for (const log of allLogs) {
+        if (!logsMap.has(log.studentId)) logsMap.set(log.studentId, { attended: 0, total: 0 });
+        const stats = logsMap.get(log.studentId);
+        stats.total++;
+        if (log.status === 'present' || log.status === 'late') stats.attended++;
+      }
+
+      // Fetch aggregated attendance percentages
+      const semesterAttendance = await db.semesterAttendance.findMany({
         select: { studentId: true, percentage: true }
       });
-      const records = await db.semesterRecord.findMany({
-        select: { studentId: true, cgpa: true },
-        orderBy: { semester: 'desc' }
-      });
-      // Fetch attendance logs for consecutive days calculation
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      const recentLogs = await db.attendanceLog.findMany({
-        where: {
-          date: { gte: thirtyDaysAgo },
-          status: 'present'
-        },
-        select: { studentId: true, date: true },
-        orderBy: { date: 'asc' }
-      });
+      
+      const attMap = new Map();
+      for (const att of semesterAttendance) {
+        if (!attMap.has(att.studentId)) attMap.set(att.studentId, []);
+        attMap.get(att.studentId).push(att.percentage);
+      }
 
       usersWithRisk = users.map(user => {
         if (user.role !== 'student') return user;
 
-        // --- ATTENDANCE POINTS (max 50) ---
-        const userAttendance = attendance.filter(a => a.studentId === user.id);
-        const avgAtt = userAttendance.length > 0
-          ? userAttendance.reduce((sum, a) => sum + a.percentage, 0) / userAttendance.length
-          : 0;
-
+        const cached = riskMap.get(user.id);
+        const cgpa = cgpaMap.get(user.id) || 0;
+        
+        // Calculate Live Attendance
+        const liveLogs = logsMap.get(user.id) || { attended: 0, total: 0 };
+        const liveLogAvg = liveLogs.total > 0 ? (liveLogs.attended / liveLogs.total * 100) : 0;
+        
+        const studentAtts = attMap.get(user.id) || [];
+        // Combined average: prioritize live logs if they have more data, or average them out
+        const avgAtt = liveLogAvg > 0 ? liveLogAvg : (studentAtts.length > 0 
+          ? studentAtts.reduce((a: number, b: number) => a + b, 0) / studentAtts.length 
+          : 0);
+        
         let attPoints = 0;
-        if (avgAtt >= 95) attPoints = 50;
-        else if (avgAtt >= 90) attPoints = 45;
-        else if (avgAtt >= 85) attPoints = 40;
-        else if (avgAtt >= 80) attPoints = 35;
-        else if (avgAtt >= 75) attPoints = 30;
-        else if (avgAtt >= 70) attPoints = 20;
-        else if (avgAtt >= 60) attPoints = 10;
-        else attPoints = 0;
+        if (avgAtt >= 95) attPoints = 0;
+        else if (avgAtt >= 90) attPoints = 5;
+        else if (avgAtt >= 85) attPoints = 10;
+        else if (avgAtt >= 80) attPoints = 15;
+        else if (avgAtt >= 75) attPoints = 20;
+        else if (avgAtt >= 70) attPoints = 30;
+        else if (avgAtt >= 60) attPoints = 40;
+        else attPoints = 50;
 
-        // --- CGPA POINTS (max 50) ---
-        const latestRecord = records.find(r => r.studentId === user.id);
-        const cgpa = latestRecord?.cgpa || 0;
-
+        // Calculate CGPA Points (Max 50)
         let cgpaPoints = 0;
-        if (cgpa >= 9.5) cgpaPoints = 50;
-        else if (cgpa >= 9.0) cgpaPoints = 45;
-        else if (cgpa >= 8.5) cgpaPoints = 40;
-        else if (cgpa >= 8.0) cgpaPoints = 35;
-        else if (cgpa >= 7.5) cgpaPoints = 30;
+        if (cgpa >= 9.5) cgpaPoints = 0;
+        else if (cgpa >= 9.0) cgpaPoints = 5;
+        else if (cgpa >= 8.5) cgpaPoints = 10;
+        else if (cgpa >= 8.0) cgpaPoints = 15;
+        else if (cgpa >= 7.5) cgpaPoints = 20;
         else if (cgpa >= 7.0) cgpaPoints = 25;
-        else if (cgpa >= 6.0) cgpaPoints = 15;
-        else if (cgpa >= 5.0) cgpaPoints = 5;
-        else cgpaPoints = 0;
+        else if (cgpa >= 6.0) cgpaPoints = 35;
+        else if (cgpa >= 5.0) cgpaPoints = 45;
+        else cgpaPoints = 50;
 
-        // --- CONSISTENCY POINTS (max 30) ---
-        // Count consecutive present days
-        const studentLogs = recentLogs
-          .filter(l => l.studentId === user.id)
-          .map(l => new Date(l.date).toDateString());
-        const uniqueDays = [...new Set(studentLogs)];
-
-        let maxConsecutive = 0;
-        let currentStreak = 0;
-        for (let i = 0; i < uniqueDays.length; i++) {
-          if (i === 0) {
-            currentStreak = 1;
-          } else {
-            const prev = new Date(uniqueDays[i - 1]);
-            const curr = new Date(uniqueDays[i]);
-            const diff = (curr.getTime() - prev.getTime()) / (1000 * 60 * 60 * 24);
-            if (diff === 1) {
-              currentStreak++;
-            } else {
-              currentStreak = 1;
-            }
-          }
-          if (currentStreak > maxConsecutive) maxConsecutive = currentStreak;
-        }
-
+        // Calculate Consistency Points (Max 30)
+        // Rule: Lose 15 points if avgAtt < 75%, Lose 15 points if cgpa < 6.0
         let consistencyPoints = 0;
-        if (maxConsecutive >= 30) consistencyPoints = 30;
-        else if (maxConsecutive >= 20) consistencyPoints = 25;
-        else if (maxConsecutive >= 15) consistencyPoints = 20;
-        else if (maxConsecutive >= 10) consistencyPoints = 15;
-        else if (maxConsecutive >= 5) consistencyPoints = 10;
-        else if (maxConsecutive >= 3) consistencyPoints = 5;
-        else consistencyPoints = 0;
+        if (avgAtt < 75) consistencyPoints += 15;
+        if (cgpa < 6.0) consistencyPoints += 15;
 
-        // --- TOTAL SCORE & RISK LEVEL ---
-        // Max = 130 points; normalize to 0-100 scale
         const totalPoints = attPoints + cgpaPoints + consistencyPoints;
+        // Calculate consistency score scaled to 100%
+        const liveRiskScore = (totalPoints / 130) * 100;
+        const liveRiskLevel = totalPoints >= 60 ? 'high' : totalPoints >= 30 ? 'medium' : 'low';
 
-        // No-data fallback: if student has no attendance AND no academic records, can't assess → default low
-        const hasData = userAttendance.length > 0 || latestRecord !== undefined;
-
-        let riskScore: number;
-        let riskLevel: string;
-
-        if (!hasData) {
-          // Student has no records yet — treat as low risk (unassessed)
-          riskScore = 70; // appears healthy on screen
-          riskLevel = 'low';
-        } else {
-          riskScore = parseFloat(((totalPoints / 130) * 100).toFixed(1));
-          // Balanced thresholds:
-          // < 30%  → High   (serious issues in multiple factors)
-          // 30-54% → Medium (some concern in one or two areas)
-          // 55%+   → Low    (performing adequately)
-          if (riskScore < 30) riskLevel = 'high';
-          else if (riskScore < 55) riskLevel = 'medium';
-          else riskLevel = 'low';
-        }
-
-        const factors: string[] = [];
-        if (hasData) {
-          if (avgAtt < 75) factors.push(`Low attendance: ${avgAtt.toFixed(1)}%`);
-          if (cgpa > 0 && cgpa < 6.0) factors.push(`Low CGPA: ${cgpa.toFixed(2)}`);
-          if (maxConsecutive < 5 && userAttendance.length > 0) factors.push(`Low consistency: ${maxConsecutive} days`);
-        }
-
-        // Upsert risk assessment in background (fire-and-forget)
-        db.riskAssessment.upsert({
-          where: { studentId: user.id },
-          update: { riskLevel, riskScore, factors: factors.join(', ') },
-          create: { studentId: user.id, riskLevel, riskScore, factors: factors.join(', ') }
-        }).catch(() => {});
-
+        // Generate detailed risk factors on the fly
+        const liveFactors: string[] = [];
+        if (avgAtt < 60) liveFactors.push(`Critical Attendance: ${avgAtt.toFixed(1)}%`);
+        else if (avgAtt < 75) liveFactors.push(`Low Attendance: ${avgAtt.toFixed(1)}%`);
+        if (cgpa < 5.0) liveFactors.push(`Critical CGPA: ${cgpa.toFixed(2)}`);
+        else if (cgpa < 7.0) liveFactors.push(`Low CGPA: ${cgpa.toFixed(2)}`);
 
         return {
           ...user,
-          riskLevel,
-          riskScore,
-          attendance: parseFloat(avgAtt.toFixed(1)),
-          cgpa,
-          totalPoints,
+          riskLevel: liveRiskLevel, // Prioritize live calculation
+          riskScore: liveRiskScore, // Prioritize live calculation
+          factors: liveFactors.length > 0 ? liveFactors.join(', ') : (cached?.factors || 'Healthy academic record'), 
+          cgpa: cgpa,
+          attendance: avgAtt,
           attPoints,
           cgpaPoints,
           consistencyPoints,
-          maxConsecutiveDays: maxConsecutive,
-          factors: factors.join(', ')
+          totalPoints,
         };
       });
     }
@@ -228,11 +206,53 @@ export async function GET(request: NextRequest) {
   }
 }
 
+// PATCH: Update user profile or reset password
+export async function PATCH(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { id, password, name, email, phone, branch, section, year, department, parentEmail, parentPhone } = body;
+
+    if (!id) {
+      return NextResponse.json({ success: false, message: 'User ID is required' }, { status: 400 });
+    }
+
+    const data: any = {};
+    if (password) {
+      data.password = await bcrypt.hash(password, 10);
+    }
+    if (name !== undefined) data.name = name;
+    if (email !== undefined) data.email = email;
+    if (phone !== undefined) data.phone = phone;
+    if (branch !== undefined) data.branch = branch;
+    if (section !== undefined) data.section = section;
+    if (year !== undefined) data.year = year;
+    if (department !== undefined) data.department = department;
+    if (parentEmail !== undefined) data.parentEmail = parentEmail;
+    if (parentPhone !== undefined) data.parentPhone = parentPhone;
+
+    await db.user.update({
+      where: { id },
+      data
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: 'User updated successfully'
+    });
+  } catch (error) {
+    console.error('Error updating user:', error);
+    return NextResponse.json({
+      success: false,
+      message: 'Failed to update user'
+    }, { status: 500 });
+  }
+}
+
 // DELETE: Delete a user by ID
 export async function DELETE(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
+    const id = searchParams.get('userId'); // Matches the frontend call
 
     if (!id) {
       return NextResponse.json({

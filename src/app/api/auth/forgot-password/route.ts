@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (!user) {
-      // For demo, return success even if user not found
+      // Standard security practice: return success even if user not found to prevent user enumeration
       return NextResponse.json({
         success: true,
         message: 'If an account exists with these credentials, a reset link has been sent.',
@@ -37,7 +37,6 @@ export async function POST(request: NextRequest) {
     const resetTokenExpiry = new Date(Date.now() + 3600000); // 1 hour
 
     // In production, save token to database and send email
-    // For demo, we just return success
 
     return NextResponse.json({
       success: true,

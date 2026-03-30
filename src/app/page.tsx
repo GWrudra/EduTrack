@@ -2,6 +2,20 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAppStore, User, Course, Assignment, Exam, Mark, StudentRiskInfo, Message, DailyQuote } from '@/lib/store';
+import { toast } from 'sonner';
+import {
+  Chart as ChartJS,
+  ArcElement,
+  Tooltip,
+  Legend,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  Title
+} from 'chart.js';
+import { Doughnut, Line as LineChart, Bar as BarChart } from 'react-chartjs-2';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -20,23 +34,58 @@ import {
   Menu, X, Bell, ChevronRight, Upload, FileText, Users, AlertTriangle,
   Clock, MapPin, Plus, Trash2, Edit, CheckCircle2, Circle, RefreshCw,
   TrendingUp, Award, Target, MessageSquare, Send, Download,
-  Sun, Moon, Search, Eye, Phone, Home, Database,
+  Sun, Moon, Search, Eye, Phone, Home, Database, Lock, RotateCcw,
   GraduationCap, UserCheck, AlertCircle, ChevronLeft, LayoutDashboard, Mail, Key
 } from 'lucide-react';
-import { toast } from 'sonner';
-import {
-  Chart as ChartJS,
-  ArcElement,
-  Tooltip,
-  Legend,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  BarElement,
-  Title
-} from 'chart.js';
-import { Doughnut, Line as LineChart, Bar as BarChart } from 'react-chartjs-2';
+
+// ============ UTILITIES ============
+
+const getRoleColor = (role: string) => {
+  switch (role) {
+    case 'admin': return 'bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-400 border-red-200';
+    case 'faculty': return 'bg-purple-100 text-purple-600 dark:bg-purple-900/40 dark:text-purple-400 border-purple-200';
+    case 'student': return 'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-400 border-blue-200';
+    default: return 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border-slate-200';
+  }
+};
+const getOrdinal = (n: number) => {
+  const s = ["th", "st", "nd", "rd"];
+  const v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+};
+
+// Get proper name initial, skipping title prefixes like Dr., Prof., etc.
+const getInitial = (name: string | undefined | null): string => {
+  if (!name) return 'U';
+  const cleaned = name.replace(/^(Dr\.|Prof\.|Mr\.|Mrs\.|Ms\.)\s*/i, '').trim();
+  return (cleaned.charAt(0) || name.charAt(0)).toUpperCase();
+};
+
+// Map Academic Year (1-4) to a Semester (1-8) based on current month
+const getActiveSemester = (year: number | undefined) => {
+  if (!year) return null;
+  const month = new Date().getMonth(); // 0 is Jan, 2 is Mar
+  const isEvenSemester = month >= 0 && month <= 5; // Jan to June
+
+  if (isEvenSemester) {
+    return year * 2;
+  } else {
+    return year * 2 - 1;
+  }
+};
+
+const getBatchFromId = (id: string | undefined) => {
+  if (!id) return '2024';
+  if (id.includes('-')) {
+    const parts = id.split('-');
+    return parts.length > 2 ? parts[2] : parts[0];
+  }
+  // If it's pure numeric like 20254210, first 4 digits are usually the year
+  if (/^\d+$/.test(id) && id.length >= 4) {
+    return id.substring(0, 4);
+  }
+  return '2024';
+};
 
 // Register Chart.js components
 if (typeof window !== 'undefined') {
@@ -45,7 +94,7 @@ if (typeof window !== 'undefined') {
 
 // ============ AUTH COMPONENTS ============
 
-function LoginPage({ onLogin }: { onLogin: (user: User) => void }) {
+function LoginPage({ onLogin }: { onLogin: (user: User, token: string) => void }) {
   const [collegeId, setCollegeId] = useState('');
   const [password, setPassword] = useState('');
   const [showForgot, setShowForgot] = useState(false);
@@ -65,7 +114,7 @@ function LoginPage({ onLogin }: { onLogin: (user: User) => void }) {
       const data = await res.json();
 
       if (data.success) {
-        onLogin(data.user);
+        onLogin(data.user, data.token);
         toast.success('Login successful!');
       } else {
         toast.error(data.message || 'Login failed');
@@ -127,12 +176,6 @@ function LoginPage({ onLogin }: { onLogin: (user: User) => void }) {
           )}
 
           <Separator className="my-4" />
-          <div className="text-center text-sm text-muted-foreground bg-gray-50 dark:bg-gray-800 rounded-xl p-3">
-            <p className="font-medium mb-1">Demo Credentials:</p>
-            <p>Admin: <span className="font-mono">ADMIN</span> / <span className="font-mono">admin123</span></p>
-            <p>Student: <span className="font-mono">CSE001</span> / <span className="font-mono">password123</span></p>
-            <p>Faculty: <span className="font-mono">T001</span> / <span className="font-mono">password123</span></p>
-          </div>
         </CardContent>
       </Card>
     </div>
@@ -315,7 +358,7 @@ function StudentDetailsDialog({ open, onOpenChange, student, onSendWarning, onAl
       toast.error('Please enter a warning message');
       return;
     }
-    
+
     try {
       const res = await fetch('/api/messages', {
         method: 'POST',
@@ -349,7 +392,7 @@ function StudentDetailsDialog({ open, onOpenChange, student, onSendWarning, onAl
       toast.error('Please enter a message for parent');
       return;
     }
-    
+
     try {
       const res = await fetch('/api/messages', {
         method: 'POST',
@@ -385,7 +428,7 @@ function StudentDetailsDialog({ open, onOpenChange, student, onSendWarning, onAl
           <DialogTitle className="flex items-center gap-2">
             <Avatar className="w-10 h-10">
               <AvatarFallback className="bg-gradient-to-br from-slate-600 to-slate-700 text-white">
-                {student.name.charAt(0)}
+                {getInitial(student.name)}
               </AvatarFallback>
             </Avatar>
             <div>
@@ -575,14 +618,19 @@ function PointsPage() {
             subjectCount: marks.length
           });
 
-          const idHash = user.id.split('').reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0);
-          const academicPts = Math.floor((data.data.stats?.currentCGPA || 7) * 10);
-          const socialPts = (idHash % 50) + 20;
-          setDynamicPoints({
-            totalPoints: academicPts + socialPts + 100, // Base
-            academicPoints: academicPts + 80,
-            socialPoints: socialPts + 20
-          });
+          if (data.data.points) {
+            setDynamicPoints({
+              totalPoints: data.data.points.totalPoints,
+              academicPoints: data.data.points.academicPoints,
+              socialPoints: data.data.points.socialPoints
+            });
+          } else {
+            setDynamicPoints({
+              totalPoints: 0,
+              academicPoints: 0,
+              socialPoints: 0
+            });
+          }
         }
       } catch (error) {
         console.error('Failed to fetch academic data:', error);
@@ -645,7 +693,7 @@ function PointsPage() {
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             {scorecardData.map((item) => (
               <div key={item.label} className={`p-4 rounded-xl ${item.bg} text-center`}>
-                <p className="text-2xl font-bold {item.color}">{item.value}</p>
+                <p className={`text-2xl font-bold ${item.color}`}>{item.value}</p>
                 <p className="text-xs text-muted-foreground mt-1">{item.label}</p>
               </div>
             ))}
@@ -694,9 +742,9 @@ function PointsPage() {
 function NotificationsDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const { messages, user } = useAppStore();
 
-  // Filter messages for the current user (student gets messages sent to them or all students)
+  // Filter messages for the current user (student gets messages sent to them, by them, or all students)
   const userMessages = user?.role === 'student'
-    ? messages.filter(m => m.receiverId === user.id || m.targetType === 'student' || m.targetType === 'all')
+    ? messages.filter(m => m.senderId === user.id || m.receiverId === user.id || m.targetType === 'student' || m.targetType === 'all')
     : messages;
 
   const unreadCount = userMessages.filter(m => !m.isRead).length;
@@ -810,7 +858,7 @@ function DailyQuoteCard() {
         <div className="flex items-start gap-3">
           <Avatar className="w-10 h-10 bg-slate-500">
             <AvatarFallback className="bg-slate-500 text-white font-bold">
-              {dailyQuote.author?.charAt(0) || 'Q'}
+              {getInitial(dailyQuote.author) || 'Q'}
             </AvatarFallback>
           </Avatar>
           <div className="flex-1 min-w-0">
@@ -866,8 +914,9 @@ function DesktopSidebar() {
 
   // Get unread notifications count
   const { messages } = useAppStore();
+  // Filter messages for the current user
   const userMessages = user?.role === 'student'
-    ? messages.filter(m => m.receiverId === user.id || m.targetType === 'student' || m.targetType === 'all')
+    ? messages.filter(m => m.senderId === user.id || m.receiverId === user.id || m.targetType === 'student' || m.targetType === 'all')
     : messages;
   const unreadCount = userMessages.filter(m => !m.isRead).length;
 
@@ -896,7 +945,7 @@ function DesktopSidebar() {
             <div className="flex items-center gap-3">
               <Avatar className="w-10 h-10 ring-2 ring-slate-500/20">
                 <AvatarFallback className="bg-gradient-to-br from-slate-600 to-slate-700 text-white">
-                  {user?.name?.charAt(0) || 'U'}
+                  {getInitial(user?.name)}
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0">
@@ -910,7 +959,7 @@ function DesktopSidebar() {
               </Badge>
               {user?.role === 'student' && (
                 <Badge variant="outline" className="text-xs rounded-lg">
-                  Year {user?.year} - {user?.section}
+                  Batch {user?.collegeId?.split('-')?.[2] || user?.year} | Sec {user?.section}
                 </Badge>
               )}
               {user?.role === 'student' && user?.semester && (
@@ -1091,7 +1140,7 @@ function MobileHeader() {
             <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-xl">
               <Avatar className="w-12 h-12 ring-2 ring-slate-500/20">
                 <AvatarFallback className="bg-gradient-to-br from-slate-600 to-slate-700 text-white text-lg">
-                  {user?.name?.charAt(0) || 'U'}
+                  {getInitial(user?.name)}
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1">
@@ -1132,12 +1181,13 @@ function StudentDashboard() {
         if (data.success && data.data.stats) {
           setStats(data.data.stats);
 
-          // Generate unique pseudo-random points based on student ID to show varied data per user
-          const idHash = user.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-          const academicScore = data.data.stats.currentCGPA || 7;
-          setDynamicPoints({
-            totalPoints: 120 + (idHash % 100) + Math.floor(academicScore * 10)
-          });
+          if (data.data.points) {
+            setDynamicPoints({
+              totalPoints: data.data.points.totalPoints
+            });
+          } else {
+            setDynamicPoints({ totalPoints: 0 });
+          }
         }
       } catch (error) {
         console.error('Failed to fetch stats:', error);
@@ -1152,19 +1202,39 @@ function StudentDashboard() {
     const fetchTodayCourses = async () => {
       if (!user?.section) return;
       try {
-        const res = await fetch(`/api/timetable?section=${user.section}`);
+        const formattedSection = user.section.includes('-')
+          ? user.section
+          : `${user.branch || ''}-${user.section}`;
+
+        const res = await fetch(`/api/timetable?section=${formattedSection.toUpperCase()}`);
         const data = await res.json();
         if (data.success && data.entries) {
           const today = new Date().getDay();
           const todayMapped = today === 0 ? 0 : today; // 0 is Sunday, 1 is Monday etc
-          setTodayCourses(data.entries.filter((e: any) => e.dayOfWeek === todayMapped));
+          const filtered = data.entries.filter((e: any) => e.dayOfWeek === todayMapped);
+
+          // Sort by start time (HH:mm)
+          const sorted = filtered.sort((a: any, b: any) => (a.startTime || '').localeCompare(b.startTime || ''));
+
+          // Merge identical consecutive subjects (e.g. 2rd classes/labs)
+          const merged: any[] = [];
+          for (let i = 0; i < sorted.length; i++) {
+            const current = sorted[i];
+            const last = merged[merged.length - 1];
+            if (last && (last.subject === current.subject)) {
+              last.endTime = current.endTime;
+            } else {
+              merged.push({ ...current });
+            }
+          }
+          setTodayCourses(merged);
         }
       } catch (error) {
         console.error('Failed to fetch today courses:', error);
       }
     };
     fetchTodayCourses();
-  }, [user?.section]);
+  }, [user?.section, dataUpdateCounter]);
 
   const attendancePercent = stats.overallAttendance || 0;
   const cgpa = stats.currentCGPA ? stats.currentCGPA.toFixed(2) : '0.00';
@@ -1197,17 +1267,6 @@ function StudentDashboard() {
         <div>
           <p className="text-sm text-muted-foreground">{getGreeting()}</p>
           <h1 className="text-2xl font-bold tracking-tight">{user?.name || 'Student'}</h1>
-          <div className="flex items-center gap-2 mt-1.5">
-            <Badge variant="secondary" className="rounded-md text-xs font-medium">
-              {user?.branch}
-            </Badge>
-            <Badge variant="outline" className="rounded-md text-xs">
-              Sem {user?.semester || 4}
-            </Badge>
-            <Badge variant="outline" className="rounded-md text-xs">
-              Sec {user?.section}
-            </Badge>
-          </div>
         </div>
         <div className="text-right">
           <div className="text-3xl font-bold text-slate-700 dark:text-slate-200">{new Date().getDate()}</div>
@@ -1333,10 +1392,10 @@ function StudentDashboard() {
                   >
                     <div className={`w-1 h-10 rounded-full ${color.bar}`} />
                     <div className={`w-10 h-10 rounded-lg ${color.bg} flex items-center justify-center`}>
-                      <span className={`font-bold text-sm ${color.text}`}>{course.name.charAt(0)}</span>
+                      <span className={`font-bold text-sm ${color.text}`}>{(course.name || course.subject)?.charAt(0) || 'C'}</span>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm truncate">{course.name}</p>
+                      <p className="font-medium text-sm truncate">{course.name || course.subject}</p>
                       <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
                         <Clock className="w-3 h-3" />
                         <span>{course.startTime} - {course.endTime}</span>
@@ -1350,7 +1409,7 @@ function StudentDashboard() {
                       </div>
                     </div>
                     <Badge variant="outline" className="text-[10px] rounded-md">
-                      {course.credits} Cr
+                      {(course.credits || 3)} Cr
                     </Badge>
                   </div>
                 );
@@ -1949,11 +2008,29 @@ function StatisticsPage() {
 // ============ TIMETABLE PAGE ============
 
 function TimetablePage() {
-  const { user, courses, riskStudents } = useAppStore();
+  const { user, courses, riskStudents, dataUpdateCounter, timetableFilters, setTimetableFilters } = useAppStore();
   const [selectedSection, setSelectedSection] = useState('CSE-A');
   const [selectedBranch, setSelectedBranch] = useState('CSE');
   const [dbTimetable, setDbTimetable] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Sync with global timetable filters (e.g. from Admin Dashboard)
+  useEffect(() => {
+    if (timetableFilters.section) {
+      const section = timetableFilters.section;
+      setSelectedSection(section);
+      if (section.includes('-')) {
+        setSelectedBranch(section.split('-')[0]);
+      } else {
+        setSelectedBranch(section);
+      }
+    }
+
+    // Clear the filters after applying
+    if (timetableFilters.section) {
+      setTimetableFilters({ section: null, semester: null });
+    }
+  }, [timetableFilters, setTimetableFilters]);
 
   // Re-sync to user's identity if logged in as a student
   useEffect(() => {
@@ -1963,7 +2040,34 @@ function TimetablePage() {
     }
   }, [user]);
 
-  // Fetch fully parsed DB timetable on load
+  // Calculate the student's current semester from their year field
+  const getStudentSemester = () => {
+    if (user?.role !== 'student' || !user?.year) return null;
+    let academicYear = user.year;
+    // If year looks like an admission year (e.g. 2023), convert to academic year
+    if (academicYear > 100) {
+      const currentDate = new Date();
+      const currentYear = currentDate.getFullYear();
+      const currentMonth = currentDate.getMonth(); // 0=Jan
+      // Academic year starts in July/August
+      // If we're in Jan-June, the student has completed (currentYear - admissionYear - 1) full years
+      // If we're in Jul-Dec, they've completed (currentYear - admissionYear) full years
+      if (currentMonth >= 6) { // Jul-Dec (odd semester)
+        academicYear = currentYear - user.year + 1;
+      } else { // Jan-June (even semester)
+        academicYear = currentYear - user.year;
+      }
+      if (academicYear < 1) academicYear = 1;
+      if (academicYear > 4) academicYear = 4;
+    }
+    const month = new Date().getMonth();
+    const isEvenSem = month >= 0 && month <= 5; // Jan-June = even semester
+    return isEvenSem ? academicYear * 2 : academicYear * 2 - 1;
+  };
+
+  const studentSemester = getStudentSemester();
+
+  // Fetch fully parsed DB timetable on load and sync
   useEffect(() => {
     const fetchTimetable = async () => {
       setLoading(true);
@@ -1971,7 +2075,16 @@ function TimetablePage() {
         const res = await fetch('/api/timetable');
         const data = await res.json();
         if (data.success && data.entries) {
-          setDbTimetable(data.entries);
+          let entries = data.entries;
+          // For students, filter by their current semester
+          if (studentSemester && user?.role === 'student') {
+            const semFiltered = entries.filter((e: any) => e.semester === studentSemester);
+            // Only apply filter if there are matching entries (fallback to all if no match)
+            if (semFiltered.length > 0) {
+              entries = semFiltered;
+            }
+          }
+          setDbTimetable(entries);
         }
       } catch (error) {
         console.error('Failed to fetch timetable:', error);
@@ -1980,7 +2093,7 @@ function TimetablePage() {
       }
     };
     fetchTimetable();
-  }, []);
+  }, [dataUpdateCounter, studentSemester, user?.role]);
 
   const days = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
   const timeSlots = [
@@ -1993,25 +2106,43 @@ function TimetablePage() {
     { time: '14:00-15:00', label: '2:00', dbStart: '14:00' },
   ];
 
-  // Get unique sections filtering
-  const branches = ['CSE', 'AI/ML', 'ECE', 'EE/EEE', 'CE', 'ME', 'DS', 'CST', 'IT'];
-  const sectionsByBranch: Record<string, string[]> = {
-    'CSE': ['CSE-A', 'CSE-B', 'CSE-C', 'CSE-D', 'CSE-E', 'CSE-F'],
-    'AI/ML': ['AI/ML-A', 'AI/ML-B', 'AI/ML-C'],
-    'ECE': ['ECE-A', 'ECE-B'],
-    'EE/EEE': ['EE/EEE'],
-    'CE': ['CE'],
-    'ME': ['ME'],
-    'DS': ['DS'],
-    'CST': ['CST'],
-    'IT': ['IT'],
-  };
+  // Extract all unique sections from actual backend database timetable
+  const allSections = [...new Set(dbTimetable.map(e => e.section).filter(Boolean))].sort() as string[];
 
-  const currentSections = sectionsByBranch[selectedBranch] || [];
+  // Try to group by branch dynamically if they follow the 'BRANCH-SECTION' format
+  const dynamicBranches = [...new Set(allSections.map(s => s.split('-')[0]))].sort();
+  const validBranch = dynamicBranches.includes(selectedBranch) ? selectedBranch : (dynamicBranches[0] || 'CSE');
+  const validSections = allSections.filter(s => s.startsWith(validBranch));
+
+  // Auto-correct section selection if empty or invalid
+  const activeSection = (validSections.includes(selectedSection) ? selectedSection : validSections[0]) || allSections[0] || '';
 
   const getSubjectForSlot = (day: string, section: string, timeObj: any) => {
     if (timeObj.isLunch) return 'LUNCH';
-    const entry = dbTimetable.find(e => e.dayName === day && e.section === section && e.startTime === timeObj.dbStart);
+    // Try strict match first, then fallback to loose match
+    let entry = dbTimetable.find(e =>
+      e.dayName === day &&
+      e.section === section &&
+      e.startTime === timeObj.dbStart
+    );
+
+    if (!entry && section.includes('-')) {
+      const shortSec = section.split('-').pop();
+      entry = dbTimetable.find(e =>
+        e.dayName === day &&
+        e.section === shortSec &&
+        e.startTime === timeObj.dbStart
+      );
+    }
+
+    if (!entry) {
+      entry = dbTimetable.find(e =>
+        e.dayName === day &&
+        section.endsWith(e.section) &&
+        e.startTime === timeObj.dbStart
+      );
+    }
+
     return entry ? entry.subject : '';
   };
 
@@ -2027,7 +2158,7 @@ function TimetablePage() {
   };
 
   // Calculate dynamic stats
-  const mondayClasses = dbTimetable.filter(e => e.dayName === 'MONDAY' && e.section === selectedSection);
+  const mondayClasses = dbTimetable.filter(e => e.dayName === 'MONDAY' && e.section === activeSection);
   const classesToday = mondayClasses.length;
 
   return (
@@ -2039,7 +2170,7 @@ function TimetablePage() {
             {user?.role === 'faculty' ? 'Teaching Schedule' : 'Class Timetable'}
           </h2>
           <p className="text-sm text-muted-foreground">
-            B.Tech 2024 Batch, 4th Semester (Effective from 09/02/2026)
+            B.Tech {getBatchFromId(user?.collegeId)} Batch{studentSemester ? ` • ${getOrdinal(studentSemester)} Semester` : ''} (Active Session)
           </p>
         </div>
       </div>
@@ -2048,30 +2179,35 @@ function TimetablePage() {
       <Card className="border-0 shadow-md rounded-2xl">
         <CardContent className="p-3">
           <div className="flex flex-wrap gap-3 items-center">
-            <div className="flex items-center gap-2">
-              <Label className="text-xs font-medium">Branch:</Label>
-              <Select value={selectedBranch} onValueChange={(v) => {
-                setSelectedBranch(v);
-                setSelectedSection(sectionsByBranch[v]?.[0] || v);
-              }}>
-                <SelectTrigger className="w-28 rounded-xl h-9">
-                  <SelectValue />
+            {dynamicBranches.length > 0 && (
+              <div className="flex items-center gap-2">
+                <Label className="text-xs font-medium">Group / Branch:</Label>
+                <Select value={validBranch} onValueChange={(v) => {
+                  setSelectedBranch(v);
+                  const newValid = allSections.filter(s => s.startsWith(v));
+                  if (newValid.length > 0) setSelectedSection(newValid[0]);
+                }}>
+                  <SelectTrigger className="w-40 rounded-xl h-9">
+                    <SelectValue placeholder="Select" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {dynamicBranches.map(branch => (
+                      <SelectItem key={branch} value={branch}>{branch}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            <div className="flex flex-1 items-center gap-2">
+              <Label className="text-xs font-medium">Timetable Section:</Label>
+              <Select value={activeSection} onValueChange={setSelectedSection}>
+                <SelectTrigger className="w-full max-w-[350px] rounded-xl h-9">
+                  <SelectValue placeholder="Select a valid class" />
                 </SelectTrigger>
                 <SelectContent>
-                  {branches.map(branch => (
-                    <SelectItem key={branch} value={branch}>{branch}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex items-center gap-2">
-              <Label className="text-xs font-medium">Section:</Label>
-              <Select value={selectedSection} onValueChange={setSelectedSection}>
-                <SelectTrigger className="w-28 rounded-xl h-9">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {currentSections.map(section => (
+                  {validSections.length > 0 ? validSections.map(section => (
+                    <SelectItem key={section} value={section}>{section}</SelectItem>
+                  )) : allSections.map(section => (
                     <SelectItem key={section} value={section}>{section}</SelectItem>
                   ))}
                 </SelectContent>
@@ -2098,39 +2234,86 @@ function TimetablePage() {
               </tr>
             </thead>
             <tbody>
-              {days.map((day, dayIndex) => (
-                <tr key={day} className={`${dayIndex % 2 === 0 ? 'bg-white dark:bg-gray-900' : 'bg-gray-50 dark:bg-gray-800/50'}`}>
-                  <td className="p-2 text-xs font-bold text-gray-700 dark:text-gray-300 border-r border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800">
-                    {day}
-                  </td>
-                  {timeSlots.map((slot, slotIndex) => {
-                    if (slot.isLunch) {
+              {days.map((day, dayIndex) => {
+                let skipNext = false;
+                return (
+                  <tr key={day} className={`${dayIndex % 2 === 0 ? 'bg-white dark:bg-gray-900' : 'bg-gray-50 dark:bg-gray-800/50'}`}>
+                    <td className="p-2 text-xs font-bold text-gray-700 dark:text-gray-300 border-r border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800">
+                      {day}
+                    </td>
+                    {timeSlots.map((slot, slotIndex) => {
+                      if (skipNext) {
+                        skipNext = false;
+                        return null; // Don't render since previous slot spanned over this one
+                      }
+
+                      if (slot.isLunch) {
+                        return (
+                          <td key={slot.time} className="p-1 text-center border-r border-gray-200 dark:border-gray-700 bg-gray-200 dark:bg-gray-700">
+                            <span className="text-[10px] text-gray-500 dark:text-gray-400">LUNCH</span>
+                          </td>
+                        );
+                      }
+                      const subject = getSubjectForSlot(day, activeSection, slot);
+                      const nextSlot = timeSlots[slotIndex + 1];
+                      const nextSubject = nextSlot ? getSubjectForSlot(day, activeSection, nextSlot) : null;
+
+                      // Precise current hour detection using time ranges
+                      const now = new Date();
+                      const currentDayIdx = now.getDay(); // 0=Sun, 1=Mon...
+                      const isToday = day === (days[currentDayIdx - 1] || '');
+                      let isCurrentHour = false;
+
+                      if (isToday && !slot.isLunch) {
+                        const nowDecimal = now.getHours() + now.getMinutes() / 60;
+                        const [startH, startM] = (slot.dbStart || '00:00').split(':').map(Number);
+                        const startDecimal = startH + startM / 60;
+                        const endDecimal = startDecimal + 1.0;
+                        isCurrentHour = nowDecimal >= startDecimal && nowDecimal < endDecimal;
+                      }
+
+                      // Spanning logic: match identical subjects OR assume span for Labs/AR if next is empty
+                      const isSpannableSubject = subject && (
+                        subject.includes('LAB') ||
+                        subject.includes('AR CLASS') ||
+                        subject.includes('YOGA') ||
+                        subject.includes('PRACTICAL') ||
+                        subject.includes('PROJECT')
+                      );
+
+                      const canSpan = subject && subject !== 'LUNCH' && nextSlot && !nextSlot.isLunch && (
+                        nextSubject === subject || (isSpannableSubject && (nextSubject === '' || !nextSubject))
+                      );
+
+                      if (canSpan) {
+                        skipNext = true;
+                        if (isToday) {
+                          const [startH, startM] = (slot.dbStart || '00:00').split(':').map(Number);
+                          const startDecimal = startH + startM / 60;
+                          const endDecimal = startDecimal + 2.0;
+                          const nowDecimal = now.getHours() + now.getMinutes() / 60;
+                          isCurrentHour = nowDecimal >= startDecimal && nowDecimal < endDecimal;
+                        }
+                      }
+
                       return (
-                        <td key={slot.time} className="p-1 text-center border-r border-gray-200 dark:border-gray-700 bg-gray-200 dark:bg-gray-700">
-                          <span className="text-[10px] text-gray-500 dark:text-gray-400">LUNCH</span>
+                        <td key={slot.time} colSpan={canSpan ? 2 : 1} className={`p-1 border-r border-gray-200 dark:border-gray-700 ${isCurrentHour ? 'bg-indigo-50/50 dark:bg-indigo-900/30' : ''}`}>
+                          {subject ? (
+                            <div className={`p-2 rounded-lg border text-center ${getSubjectColor(subject)} ${canSpan ? 'flex flex-col items-center justify-center min-h-[44px]' : ''}`}>
+                              <p className="text-xs font-semibold text-gray-700 dark:text-gray-200">{subject}</p>
+                              {canSpan && <p className="text-[10px] text-muted-foreground mt-0.5 opacity-80">(2 HR)</p>}
+                            </div>
+                          ) : (
+                            <div className="p-2 text-center">
+                              <span className="text-[10px] text-gray-300 dark:text-gray-600">-</span>
+                            </div>
+                          )}
                         </td>
                       );
-                    }
-                    const subject = getSubjectForSlot(day, selectedSection, slot);
-                    const isCurrentHour = new Date().getHours() >= parseInt(slot.label.split(':')[0]) &&
-                      new Date().getHours() < parseInt(slot.label.split(':')[0]) + 1 &&
-                      day === days[new Date().getDay() - 1];
-                    return (
-                      <td key={slot.time} className={`p-1 border-r border-gray-200 dark:border-gray-700 ${isCurrentHour ? 'bg-slate-50 dark:bg-slate-900/20' : ''}`}>
-                        {subject ? (
-                          <div className={`p-2 rounded-lg border text-center ${getSubjectColor(subject)}`}>
-                            <p className="text-xs font-semibold text-gray-700 dark:text-gray-200">{subject}</p>
-                          </div>
-                        ) : (
-                          <div className="p-2 text-center">
-                            <span className="text-[10px] text-gray-300 dark:text-gray-600">-</span>
-                          </div>
-                        )}
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
+                    })}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -2193,18 +2376,66 @@ function TimetablePage() {
   );
 }
 
+// ============ INTERFACES ============
+
+interface CourseAttendance {
+  courseCode: string;
+  courseName: string;
+  totalClasses: number;
+  attended: number;
+  percent: number;
+  semester: number;
+}
+
+interface SemesterRecord {
+  id: string;
+  semester: number;
+  sgpa: number;
+  cgpa: number;
+  creditsEarned: number;
+  creditsTotal: number;
+  academicYear: string;
+}
+
+interface SubjectMarkData {
+  id: string;
+  semester: number;
+  subjectCode: string;
+  subjectName: string;
+  credits: number;
+  internalMarks: number;
+  externalMarks: number;
+  totalMarks: number;
+  grade: string;
+  gradePoints: number;
+}
+
+interface AttendanceRecord {
+  id: string;
+  semester: number;
+  subjectCode: string;
+  subjectName: string;
+  totalClasses: number;
+  attended: number;
+  percentage: number;
+}
+
 // ============ ATTENDANCE UPDATE PAGE (Faculty) ============
 
 function AttendanceUpdatePage() {
   const { courses, dataUpdateCounter, triggerDataUpdate } = useAppStore();
   const [selectedCourse, setSelectedCourse] = useState('');
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [topicCovered, setTopicCovered] = useState('');
   const [selectedBranch, setSelectedBranch] = useState('all');
   const [selectedSection, setSelectedSection] = useState('all');
   const [selectedYear, setSelectedYear] = useState('all');
   const [attendanceData, setAttendanceData] = useState<Record<string, 'present' | 'absent' | 'late'>>({});
   const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [students, setStudents] = useState<any[]>([]);
+  const attendanceCsvRef = useRef<HTMLInputElement>(null);
 
   // Fetch students from database
   useEffect(() => {
@@ -2275,13 +2506,15 @@ function AttendanceUpdatePage() {
         body: JSON.stringify({
           courseId: selectedCourse,
           date: selectedDate,
-          attendanceData
+          attendanceData,
+          topicCovered: topicCovered.trim() || undefined
         }),
       });
       const data = await res.json();
       if (data.success) {
         toast.success(`Attendance saved for ${selectedCourse} on ${selectedDate}`);
         setAttendanceData({});
+        setTopicCovered(''); // Clear after saving
         triggerDataUpdate();
       } else {
         toast.error(data.message || 'Failed to save attendance');
@@ -2290,6 +2523,85 @@ function AttendanceUpdatePage() {
       toast.error('Failed to save attendance');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleCsvUpload = async () => {
+    const file = attendanceCsvRef.current?.files?.[0];
+    if (!file) {
+      toast.error('Please select a CSV file');
+      return;
+    }
+
+    setImporting(true);
+    try {
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        const csvData = event.target?.result as string;
+        try {
+          const res = await fetch('/api/attendance/import', {
+            method: 'POST',
+            body: JSON.stringify({ data: csvData }),
+            headers: { 'Content-Type': 'application/json' },
+          });
+
+          const result = await res.json();
+          if (result.success) {
+            toast.success(result.message);
+            triggerDataUpdate(); // Refresh global data
+          } else {
+            toast.error(result.message || 'Import failed');
+          }
+        } catch (error) {
+          toast.error('Failed to upload CSV');
+        } finally {
+          setImporting(false);
+          if (attendanceCsvRef.current) attendanceCsvRef.current.value = '';
+        }
+      };
+      reader.readAsText(file);
+    } catch (error) {
+      toast.error('Failed to read file');
+      setImporting(false);
+    }
+  };
+
+  const downloadFacultyTemplate = () => {
+    const template = `collegeId,date,subject,status,topicCovered
+CSE001,${new Date().toISOString().split('T')[0]},${selectedCourse || 'SUBJECT_CODE'},present,First Session
+CSE002,${new Date().toISOString().split('T')[0]},${selectedCourse || 'SUBJECT_CODE'},absent,`;
+    const blob = new Blob([template], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `attendance_template.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const deleteAttendance = async () => {
+    if (!selectedCourse) {
+      toast.error('Please select a course first');
+      return;
+    }
+    if (!confirm(`Delete all attendance records for "${selectedCourse}" on ${selectedDate}?`)) return;
+
+    setIsDeleting(true);
+    try {
+      const params = new URLSearchParams({ courseId: selectedCourse, date: selectedDate });
+      const res = await fetch(`/api/attendance?${params}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (data.success) {
+        toast.success(data.message);
+        setAttendanceData({});
+        triggerDataUpdate();
+      } else {
+        toast.error(data.message || 'Failed to delete');
+      }
+    } catch (error) {
+      toast.error('Failed to delete attendance');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -2319,8 +2631,12 @@ function AttendanceUpdatePage() {
                   <SelectValue placeholder="Select course" />
                 </SelectTrigger>
                 <SelectContent>
-                  {courses.filter(c => !['LUNCH', 'BREAK'].includes(c.name.toUpperCase())).map(course => (
-                    <SelectItem key={course.id} value={course.id}>{course.name}</SelectItem>
+                  {/* Deduplicate courses by name */}
+                  {Array.from(new Set(courses
+                    .filter(c => !['LUNCH', 'BREAK'].includes(c.name.toUpperCase()))
+                    .map(c => c.name)
+                  )).sort().map(courseName => (
+                    <SelectItem key={courseName} value={courseName}>{courseName}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -2380,6 +2696,24 @@ function AttendanceUpdatePage() {
         </CardContent>
       </Card>
 
+      {/* Lesson Topic - Manual entry for faculty */}
+      <Card className="border-0 shadow-md rounded-2xl overflow-hidden mb-3">
+        <CardContent className="p-4">
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold flex items-center gap-1 text-slate-700">
+              <BookOpen className="w-3 h-3 text-blue-500" />
+              Lesson Topic / Course Covered (Optional)
+            </Label>
+            <Input 
+              placeholder="e.g. Introduction to Data Structures, Arrays and Pointers..." 
+              value={topicCovered}
+              onChange={(e) => setTopicCovered(e.target.value)}
+              className="rounded-xl border-slate-200 focus:border-blue-500 transition-all h-10 text-sm shadow-sm"
+            />
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Quick Actions */}
       <div className="flex flex-wrap gap-2">
         <Button variant="outline" size="sm" onClick={markAllPresent} className="rounded-xl">
@@ -2391,6 +2725,24 @@ function AttendanceUpdatePage() {
           Mark All Absent
         </Button>
         <div className="flex-1" />
+        <Button variant="outline" size="sm" onClick={downloadFacultyTemplate} className="rounded-xl">
+          <Download className="w-4 h-4 mr-1" /> Template
+        </Button>
+        <input
+          ref={attendanceCsvRef}
+          type="file"
+          accept=".csv"
+          className="hidden"
+          onChange={handleCsvUpload}
+        />
+        <Button variant="outline" size="sm" onClick={() => attendanceCsvRef.current?.click()} disabled={importing} className="rounded-xl border-blue-200 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20">
+          <Upload className="w-4 h-4 mr-1" />
+          {importing ? 'Uploading...' : 'Bulk Upload (CSV)'}
+        </Button>
+        <Button variant="outline" size="sm" onClick={deleteAttendance} disabled={isDeleting || !selectedCourse} className="rounded-xl border-red-200 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20">
+          <Trash2 className="w-4 h-4 mr-1" />
+          {isDeleting ? 'Deleting...' : 'Delete'}
+        </Button>
         <Button size="sm" onClick={saveAttendance} disabled={isSaving} className="rounded-xl">
           {isSaving ? 'Saving...' : 'Save Attendance'}
         </Button>
@@ -2503,6 +2855,7 @@ interface AttendanceDetailDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   course: CourseAttendance | null;
+  allLogs: any[];
 }
 
 interface ClassAttendanceRecord {
@@ -2514,37 +2867,22 @@ interface ClassAttendanceRecord {
   topicCovered: string;
 }
 
-function AttendanceDetailDialog({ open, onOpenChange, course }: AttendanceDetailDialogProps) {
-  // Generate mock class records for the course
+function AttendanceDetailDialog({ open, onOpenChange, course, allLogs }: AttendanceDetailDialogProps) {
+  // Get class records for the course from the logs
   const getClassRecords = (courseData: CourseAttendance): ClassAttendanceRecord[] => {
-    const records: ClassAttendanceRecord[] = [];
-    const topics = [
-      'Introduction and basics',
-      'Fundamental concepts',
-      'Core principles',
-      'Advanced topics',
-      'Practical applications',
-      'Case studies',
-      'Review session',
-      'Assessment',
-    ];
+    // Filter logs for this course
+    const relevantLogs = allLogs.filter(log => 
+      log.subject === courseData.courseCode || log.subject === courseData.courseName
+    ).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-    for (let i = 0; i < courseData.totalClasses; i++) {
-      const date = new Date();
-      date.setDate(date.getDate() - (courseData.totalClasses - i - 1) * 3);
-
-      // Randomly determine if present or absent based on attendance percentage
-      const isPresent = Math.random() * 100 < courseData.percent;
-
-      records.push({
-        id: `cr-${i}`,
-        date,
-        startTime: i % 2 === 0 ? '09:00' : '14:00',
-        endTime: i % 2 === 0 ? '10:40' : '15:40',
-        status: isPresent ? 'P' : 'A',
-        topicCovered: topics[i % topics.length],
-      });
-    }
+    const records = relevantLogs.map((log, i) => ({
+      id: log.id,
+      date: new Date(log.date),
+      startTime: '09:00', // Mock time
+      endTime: '10:40',
+      status: (log.status === 'present' || log.status === 'late' ? 'P' : 'A') as 'P' | 'A',
+      topicCovered: (log as any).topicCovered || ('Session ' + (relevantLogs.length - i))
+    }));
     return records;
   };
 
@@ -2641,48 +2979,6 @@ function AttendanceDetailDialog({ open, onOpenChange, course }: AttendanceDetail
 
 // ============ ATTENDANCE & CGPA PAGE (Student) ============
 
-interface CourseAttendance {
-  courseCode: string;
-  courseName: string;
-  totalClasses: number;
-  attended: number;
-  percent: number;
-  semester: number;
-}
-
-interface SemesterRecord {
-  id: string;
-  semester: number;
-  sgpa: number;
-  cgpa: number;
-  creditsEarned: number;
-  creditsTotal: number;
-  academicYear: string;
-}
-
-interface SubjectMarkData {
-  id: string;
-  semester: number;
-  subjectCode: string;
-  subjectName: string;
-  credits: number;
-  internalMarks: number;
-  externalMarks: number;
-  totalMarks: number;
-  grade: string;
-  gradePoints: number;
-}
-
-interface AttendanceRecord {
-  id: string;
-  semester: number;
-  subjectCode: string;
-  subjectName: string;
-  totalClasses: number;
-  attended: number;
-  percentage: number;
-}
-
 function AttendanceCGPAPage() {
   const { user, dataUpdateCounter, courses } = useAppStore();
   const [selectedSemester, setSelectedSemester] = useState('all');
@@ -2692,6 +2988,7 @@ function AttendanceCGPAPage() {
   const [loading, setLoading] = useState(true);
   const [semesterRecords, setSemesterRecords] = useState<SemesterRecord[]>([]);
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
+  const [attendanceLogs, setAttendanceLogs] = useState<any[]>([]);
   const [subjectMarks, setSubjectMarks] = useState<SubjectMarkData[]>([]);
   const [stats, setStats] = useState({ currentCGPA: 0, currentSGPA: 0, overallAttendance: 0, totalCredits: 0 });
 
@@ -2707,6 +3004,7 @@ function AttendanceCGPAPage() {
         if (data.success) {
           setSemesterRecords(data.data.semesterRecords || []);
           setAttendanceRecords(data.data.attendanceRecords || []);
+          setAttendanceLogs(data.data.attendanceLogs || []);
           setSubjectMarks(data.data.subjectMarks || []);
           setStats(data.data.stats || { currentCGPA: 0, currentSGPA: 0, overallAttendance: 0, totalCredits: 0 });
         }
@@ -2737,7 +3035,7 @@ function AttendanceCGPAPage() {
 
   // Get only the last 2 semesters (sorted in descending order)
   const allSemesters = Object.keys(semesterData).map(Number).sort((a, b) => b - a);
-  const recentSemesters = allSemesters; // Show all semesters instead of just 2
+  const recentSemesters = allSemesters.slice(0, 2); // Show attendance for last 2 semesters only
 
   // Filter marks by semester for performance table (uses its own independent dropdown)
   const filteredMarks = performanceSemester === 'all'
@@ -2847,7 +3145,7 @@ function AttendanceCGPAPage() {
               <Award className="w-6 h-6 text-orange-600" />
             </div>
             <p className="text-xs text-muted-foreground">Credits</p>
-            <p className="text-2xl font-bold text-orange-600">{courses.reduce((sum, c) => sum + c.credits, 0)}</p>
+            <p className="text-2xl font-bold text-orange-600">{stats.totalCredits}</p>
           </CardContent>
         </Card>
       </div>
@@ -3074,10 +3372,11 @@ function AttendanceCGPAPage() {
       </div>
 
       {/* Attendance Detail Dialog */}
-      <AttendanceDetailDialog
-        open={showDetailDialog}
-        onOpenChange={setShowDetailDialog}
-        course={selectedCourse}
+      <AttendanceDetailDialog 
+        open={showDetailDialog} 
+        onOpenChange={setShowDetailDialog} 
+        course={selectedCourse} 
+        allLogs={attendanceLogs}
       />
     </div>
   );
@@ -3123,7 +3422,7 @@ function MessagesPage() {
 
   // Filter messages for the current student
   const userMessages = user?.role === 'student'
-    ? messages.filter(m => m.receiverId === user.id || m.targetType === 'student' || m.targetType === 'all')
+    ? messages.filter(m => m.senderId === user.id || m.receiverId === user.id || m.targetType === 'student' || m.targetType === 'all')
     : messages;
 
   const filteredMessages = userMessages.filter(m => {
@@ -3170,7 +3469,7 @@ function MessagesPage() {
   };
 
   // Handle send message to teacher
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
     if (!selectedTeacher || !contactSubject || !contactMessage) {
       toast.error('Please fill all fields');
       return;
@@ -3178,26 +3477,35 @@ function MessagesPage() {
 
     const teacher = facultyMembers.find(f => f.id === selectedTeacher);
 
-    // Add message directly to teacher's messages
-    addMessage({
-      id: Date.now().toString(),
-      senderId: user?.id || 'student',
-      senderName: user?.name || 'Student',
-      receiverId: selectedTeacher,
-      targetType: 'student',
-      title: contactSubject,
-      content: contactMessage,
-      messageType: 'info',
-      isRead: false,
-      sentAt: new Date(),
-    });
+    try {
+      const res = await fetch('/api/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          senderId: user?.id,
+          receiverId: selectedTeacher,
+          targetType: 'faculty',
+          title: contactSubject,
+          content: contactMessage,
+          messageType: 'info'
+        })
+      });
 
-    toast.success(`Message sent to ${teacher?.name}!`);
+      const data = await res.json();
+      if (data.success) {
+        addMessage(data.message);
+        toast.success(`Message sent to ${teacher?.name}!`);
 
-    // Reset form
-    setSelectedTeacher('');
-    setContactSubject('');
-    setContactMessage('');
+        // Reset form
+        setSelectedTeacher('');
+        setContactSubject('');
+        setContactMessage('');
+      } else {
+        toast.error(data.message || 'Failed to send message');
+      }
+    } catch {
+      toast.error('Failed to send message');
+    }
   };
 
   return (
@@ -3416,7 +3724,7 @@ function MessagesPage() {
                         <div className="flex items-center gap-2">
                           <Avatar className="w-6 h-6">
                             <AvatarFallback className="bg-slate-600 text-white text-xs">
-                              {teacher.name.charAt(0)}
+                              {getInitial(teacher.name)}
                             </AvatarFallback>
                           </Avatar>
                           <div>
@@ -3816,7 +4124,7 @@ function AdminUsersPage() {
       return;
     }
 
-    const headers = ['ID', 'Name', 'Role', 'Email', 'Phone', 'Branch/Dept', 'Joined At'];
+    const headers = ['ID', 'Name', 'Role', 'Email', 'Phone', 'Branch/Dept', 'Joined At', 'CGPA'];
     const rows = users.map(u => [
       u.collegeId,
       u.name,
@@ -3824,7 +4132,8 @@ function AdminUsersPage() {
       u.email || '-',
       u.phone || '-',
       u.branch || u.department || '-',
-      new Date(u.createdAt).toLocaleDateString()
+      new Date(u.createdAt).toLocaleDateString(),
+      u.cgpa || '0'
     ]);
 
     const csvContent = [headers.join(','), ...rows.map(row => row.map(val => `"${val}"`).join(','))].join('\n');
@@ -3837,6 +4146,9 @@ function AdminUsersPage() {
     URL.revokeObjectURL(url);
     toast.success('User list exported');
   };
+  const [selectedUser, setSelectedUser] = useState<any | null>(null);
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
   const [deleteUserId, setDeleteUserId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const { dataUpdateCounter } = useAppStore();
@@ -3860,6 +4172,33 @@ function AdminUsersPage() {
   useEffect(() => {
     fetchUsers();
   }, [fetchUsers, dataUpdateCounter]);
+
+  const handleResetSinglePassword = async () => {
+    if (!selectedUser || !newPassword || newPassword.length < 6) {
+      toast.error('Please enter a valid password (min 6 chars)');
+      return;
+    }
+
+    setIsResettingPassword(true);
+    try {
+      const res = await fetch('/api/users', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: selectedUser.id, password: newPassword }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success(`Password reset for ${selectedUser.name}`);
+        setNewPassword('');
+      } else {
+        toast.error(data.message || 'Failed to reset password');
+      }
+    } catch (error) {
+      toast.error('Failed to reset password');
+    } finally {
+      setIsResettingPassword(false);
+    }
+  };
 
   const handleDeleteUser = async () => {
     if (!deleteUserId) return;
@@ -3985,7 +4324,7 @@ function AdminUsersPage() {
           ) : (
             <div className="max-h-[500px] overflow-y-auto">
               <table className="w-full">
-                <thead className="sticky top-0 bg-white dark:bg-gray-900 border-b">
+                <thead className="sticky top-0 z-10 bg-white dark:bg-gray-900 border-b">
                   <tr>
                     <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground">User</th>
                     <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground">ID</th>
@@ -4010,7 +4349,7 @@ function AdminUsersPage() {
                               <AvatarFallback className={`text-white text-xs ${user.role === 'admin' ? 'bg-red-600' :
                                 user.role === 'faculty' ? 'bg-purple-600' : 'bg-slate-600'
                                 }`}>
-                                {user.name?.charAt(0)}
+                                {getInitial(user.name)}
                               </AvatarFallback>
                             </Avatar>
                             <div>
@@ -4028,7 +4367,15 @@ function AdminUsersPage() {
                           </Badge>
                         </td>
                         <td className="py-3 px-4 text-sm">{user.branch || user.department || '-'}</td>
-                        <td className="py-3 px-4">
+                        <td className="py-3 px-4 flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setSelectedUser(user)}
+                            className="h-8 w-8 p-0 text-slate-500 hover:text-slate-600 hover:bg-slate-50"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </Button>
                           {user.role !== 'admin' && (
                             <Button
                               variant="ghost"
@@ -4049,6 +4396,102 @@ function AdminUsersPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* User Details & Password Reset Dialog */}
+      <Dialog open={!!selectedUser} onOpenChange={(open) => !open && setSelectedUser(null)}>
+        <DialogContent className="rounded-2xl max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>User Profile Details</DialogTitle>
+          </DialogHeader>
+
+          {selectedUser && (
+            <div className="space-y-6 pt-2">
+              <div className="flex items-center gap-4">
+                <Avatar className="w-16 h-16 ring-2 ring-slate-100">
+                  <AvatarFallback className="text-2xl text-white bg-slate-600">
+                    {getInitial(selectedUser.name)}
+                  </AvatarFallback>
+                </Avatar>
+                <div>
+                  <h3 className="text-lg font-bold">{selectedUser.name}</h3>
+                  <p className="text-sm text-muted-foreground">{selectedUser.collegeId}</p>
+                  <Badge className={`mt-1 text-xs rounded-lg ${getRoleColor(selectedUser.role)}`}>
+                    {selectedUser.role}
+                  </Badge>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-[10px] text-muted-foreground uppercase font-bold">Email</p>
+                  <p className="text-sm truncate">{selectedUser.email || '-'}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-muted-foreground uppercase font-bold">Phone</p>
+                  <p className="text-sm">{selectedUser.phone || '-'}</p>
+                </div>
+                {selectedUser.role === 'student' ? (
+                  <>
+                    <div>
+                      <p className="text-[10px] text-muted-foreground uppercase font-bold">Branch</p>
+                      <p className="text-sm">{selectedUser.branch || '-'}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-muted-foreground uppercase font-bold">Section</p>
+                      <p className="text-sm">{selectedUser.section || '-'}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-muted-foreground uppercase font-bold">Year</p>
+                      <p className="text-sm">{selectedUser.year || '-'}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-muted-foreground uppercase font-bold">Parent Phone</p>
+                      <p className="text-sm">{selectedUser.parentPhone || '-'}</p>
+                    </div>
+                  </>
+                ) : (
+                  <div>
+                    <p className="text-[10px] text-muted-foreground uppercase font-bold">Department</p>
+                    <p className="text-sm">{selectedUser.department || '-'}</p>
+                  </div>
+                )}
+                <div className="col-span-2">
+                  <p className="text-[10px] text-muted-foreground uppercase font-bold">Account Created</p>
+                  <p className="text-sm">{new Date(selectedUser.createdAt).toLocaleString()}</p>
+                </div>
+              </div>
+
+              <div className="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-xl space-y-3">
+                <h4 className="text-sm font-bold flex items-center gap-2">
+                  <Lock className="w-4 h-4" /> Reset Password
+                </h4>
+                <div className="flex gap-2">
+                  <Input
+                    type="password"
+                    placeholder="New password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="h-9 rounded-xl text-sm"
+                  />
+                  <Button
+                    size="sm"
+                    onClick={handleResetSinglePassword}
+                    disabled={isResettingPassword}
+                    className="rounded-xl h-9"
+                  >
+                    {isResettingPassword ? 'Updating...' : 'Reset'}
+                  </Button>
+                </div>
+                <p className="text-[10px] text-muted-foreground">User must relogin with the new password after reset.</p>
+              </div>
+
+              <Button variant="outline" onClick={() => setSelectedUser(null)} className="w-full rounded-xl">
+                Close
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={!!deleteUserId} onOpenChange={(open) => !open && setDeleteUserId(null)}>
@@ -4084,8 +4527,10 @@ function AdminImportPage() {
   const studentCsvRef = useRef<HTMLInputElement>(null);
   const facultyCsvRef = useRef<HTMLInputElement>(null);
   const timetableRef = useRef<HTMLInputElement>(null);
+  const cgpaCsvRef = useRef<HTMLInputElement>(null);
+  const attendanceCsvRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
-  const [importType, setImportType] = useState<'students' | 'faculty' | 'timetable'>('students');
+  const [importType, setImportType] = useState<'students' | 'faculty' | 'timetable' | 'academic' | 'attendance'>('students');
   const [importResult, setImportResult] = useState<{ success: number; failed: number; errors: string[] } | null>(null);
   const [showResultDialog, setShowResultDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState<'students' | 'faculty' | 'all' | null>(null);
@@ -4095,7 +4540,73 @@ function AdminImportPage() {
   const [resetRole, setResetRole] = useState<'students' | 'faculty' | 'all'>('all');
   const [resetting, setResetting] = useState(false);
   const [showResetDialog, setShowResetDialog] = useState(false);
-  const { triggerDataUpdate } = useAppStore();
+  const [importMode, setImportMode] = useState<'append' | 'replace'>('append');
+  const [deleteRecentHours, setDeleteRecentHours] = useState<string>('1');
+  const [timetableSummaries, setTimetableSummaries] = useState<any[]>([]);
+  const [initializingAcademic, setInitializingAcademic] = useState(false);
+  const { dataUpdateCounter, triggerDataUpdate, setActiveTab, setTimetableFilters } = useAppStore();
+
+  const handleInitializeAcademic = async () => {
+    setInitializingAcademic(true);
+    try {
+      const res = await fetch('/api/academic', {
+        method: 'POST',
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success(data.message);
+      } else {
+        toast.error(data.message || 'Initialization failed');
+      }
+    } catch (e) {
+      toast.error('Failed to initialize academic data');
+    } finally {
+      setInitializingAcademic(false);
+    }
+  };
+
+  const handleViewTimetable = (section: string) => {
+    // Stage the filters in global store then Switch tab
+    setTimetableFilters({ section, semester: null });
+    setActiveTab('timetable');
+  };
+
+  const fetchTimetableSummary = useCallback(async () => {
+    try {
+      const res = await fetch('/api/timetable');
+      const data = await res.json();
+      if (data.success && data.summaries) {
+        setTimetableSummaries(data.summaries);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchTimetableSummary();
+  }, [dataUpdateCounter, fetchTimetableSummary]);
+
+  const handleDeleteTimetable = async (section: string, semester: number | null) => {
+    if (!confirm(`Are you sure you want to delete all entries for ${section}${semester ? ` (Semester ${semester})` : ''}?`)) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/timetable/delete?section=${encodeURIComponent(section)}&semester=${semester || 'null'}`, {
+        method: 'DELETE'
+      });
+      const result = await res.json();
+      if (result.success) {
+        toast.success(result.message);
+        triggerDataUpdate(); // Refresh the grid
+      } else {
+        toast.error(result.message);
+      }
+    } catch (e) {
+      toast.error('Failed to delete timetable');
+    }
+  };
 
   // Fetch stats on mount
   useEffect(() => {
@@ -4125,8 +4636,23 @@ CSE002,Priya Singh,priya@email.com,9876543212,CSE,B,1,parent.singh@email.com,987
 T001,Dr. Rajesh Sharma,rajesh@college.edu,9876543220,Computer Science,rajesh@faculty
 T002,Prof. Ananya Das,ananya@college.edu,9876543221,Mathematics,ananya@faculty`;
 
-  const downloadTemplate = (type: 'students' | 'faculty') => {
-    const template = type === 'students' ? studentCsvTemplate : facultyCsvTemplate;
+  const cgpaCsvTemplate = `collegeId,Sem,Subject Code,Subject Name,Subject Type,Credit,Grade
+CSE001,3,CSE-100,PROBLEM SOLVING USING C PROGRAMMING,Theory & Sessional,4,A
+CSE001,3,ECE-100,BASIC ELECTRONICS ENGINEERING,Theory & Sessional,4,B+
+CSE002,2,ENG-100,ENGLISH FOR TECHNICAL WRITING,Theory & Sessional,4,B+
+CSE002,2,PHY-100,APPLIED PHYSICS,Theory & Sessional,4,F`;
+
+  const attendanceCsvTemplate = `collegeId,date,subject,status,topicCovered
+CSE001,2024-03-29,CC,present,Introduction to Data Structures
+CSE001,2024-03-30,CC,absent,
+CSE002,2024-03-29,DS,late,Sorting Algorithms Part 1`;
+
+  const downloadTemplate = (type: 'students' | 'faculty' | 'academic' | 'attendance') => {
+    let template = studentCsvTemplate;
+    if (type === 'faculty') template = facultyCsvTemplate;
+    if (type === 'academic') template = cgpaCsvTemplate;
+    if (type === 'attendance') template = attendanceCsvTemplate;
+
     const blob = new Blob([template], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -4158,7 +4684,7 @@ T002,Prof. Ananya Das,ananya@college.edu,9876543221,Mathematics,ananya@faculty`;
           const res = await fetch('/api/import', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ type, data: csvData }),
+            body: JSON.stringify({ type, data: csvData, mode: importMode }),
           });
 
           const result = await res.json();
@@ -4189,6 +4715,94 @@ T002,Prof. Ananya Das,ananya@college.edu,9876543221,Mathematics,ananya@faculty`;
     }
   };
 
+  const handleCgpaImport = async () => {
+    const file = cgpaCsvRef.current?.files?.[0];
+    if (!file) {
+      toast.error('Please select a CSV file');
+      return;
+    }
+
+    setImporting(true);
+    setImportResult(null);
+
+    try {
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        const csvData = event.target?.result as string;
+        try {
+          const res = await fetch('/api/academic/import', {
+            method: 'POST',
+            body: JSON.stringify({ data: csvData }),
+            headers: { 'Content-Type': 'application/json' },
+          });
+
+          const result = await res.json();
+          if (result.success) {
+            toast.success(result.message);
+            setImportResult(result.results);
+            setShowResultDialog(true);
+            triggerDataUpdate(); // Trigger global data refresh
+          } else {
+            toast.error(result.message || 'Import failed');
+          }
+        } catch (error) {
+          toast.error('Failed to import CGPA CSV');
+        } finally {
+          setImporting(false);
+          if (cgpaCsvRef.current) cgpaCsvRef.current.value = '';
+        }
+      };
+      reader.readAsText(file);
+    } catch (error) {
+      toast.error('Failed to read file');
+      setImporting(false);
+    }
+  };
+
+  const handleAttendanceImport = async () => {
+    const file = attendanceCsvRef.current?.files?.[0];
+    if (!file) {
+      toast.error('Please select a CSV file');
+      return;
+    }
+
+    setImporting(true);
+    setImportResult(null);
+
+    try {
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        const csvData = event.target?.result as string;
+        try {
+          const res = await fetch('/api/attendance/import', {
+            method: 'POST',
+            body: JSON.stringify({ data: csvData }),
+            headers: { 'Content-Type': 'application/json' },
+          });
+
+          const result = await res.json();
+          if (result.success) {
+            toast.success(result.message);
+            setImportResult(result.results);
+            setShowResultDialog(true);
+            triggerDataUpdate(); // Trigger global update
+          } else {
+            toast.error(result.message || 'Import failed');
+          }
+        } catch (error) {
+          toast.error('Failed to import Attendance CSV');
+        } finally {
+          setImporting(false);
+          if (attendanceCsvRef.current) attendanceCsvRef.current.value = '';
+        }
+      };
+      reader.readAsText(file);
+    } catch (error) {
+      toast.error('Failed to read file');
+      setImporting(false);
+    }
+  };
+
   const handleTimetableImport = async () => {
     const file = timetableRef.current?.files?.[0];
 
@@ -4208,6 +4822,7 @@ T002,Prof. Ananya Das,ananya@college.edu,9876543221,Mathematics,ananya@faculty`;
     try {
       const formData = new FormData();
       formData.append('file', file);
+      formData.append('mode', importMode);
 
       const res = await fetch('/api/timetable/import', {
         method: 'POST',
@@ -4288,19 +4903,59 @@ T002,Prof. Ananya Das,ananya@college.edu,9876543221,Mathematics,ananya@faculty`;
     }
   };
 
+  const handleDeleteRecent = async () => {
+    setDeleting(true);
+    try {
+      const res = await fetch('/api/users/delete-recent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hours: parseInt(deleteRecentHours) }),
+      });
+      const result = await res.json();
+      if (result.success) {
+        toast.success(result.message);
+        triggerDataUpdate();
+      } else {
+        toast.error(result.message || 'Failed to delete recent data');
+      }
+    } catch (error) {
+      toast.error('Failed to delete recent data');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
-      <div>
-        <h2 className="text-xl font-bold">Import Data</h2>
-        <p className="text-sm text-muted-foreground">Bulk import students, faculty, and timetable</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-bold">Import Data</h2>
+          <p className="text-sm text-muted-foreground">Bulk import students, faculty, and timetable</p>
+        </div>
+        <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+          <Button
+            variant={importMode === 'append' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => setImportMode('append')}
+            className="rounded-lg text-xs h-8"
+          >Append</Button>
+          <Button
+            variant={importMode === 'replace' ? 'destructive' : 'ghost'}
+            size="sm"
+            onClick={() => setImportMode('replace')}
+            className="rounded-lg text-xs h-8"
+          >Replace</Button>
+        </div>
       </div>
 
       {/* Import Type Tabs */}
       <Tabs value={importType} onValueChange={(v) => setImportType(v as any)}>
-        <TabsList className="grid w-full grid-cols-3 rounded-xl">
-          <TabsTrigger value="students" className="rounded-lg text-xs">Students</TabsTrigger>
-          <TabsTrigger value="faculty" className="rounded-lg text-xs">Faculty</TabsTrigger>
-          <TabsTrigger value="timetable" className="rounded-lg text-xs">Timetable</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-5 rounded-xl overflow-x-auto h-auto">
+          <TabsTrigger value="students" className="rounded-lg text-xs py-2 whitespace-nowrap">Students</TabsTrigger>
+          <TabsTrigger value="faculty" className="rounded-lg text-xs py-2 whitespace-nowrap">Faculty</TabsTrigger>
+          <TabsTrigger value="timetable" className="rounded-lg text-xs py-2 whitespace-nowrap">Timetable</TabsTrigger>
+          <TabsTrigger value="academic" className="rounded-lg text-xs py-2 whitespace-nowrap">Academic Grades</TabsTrigger>
+          <TabsTrigger value="attendance" className="rounded-lg text-xs py-2 whitespace-nowrap">Attendance</TabsTrigger>
         </TabsList>
 
         {/* Students Import */}
@@ -4311,7 +4966,7 @@ T002,Prof. Ananya Das,ananya@college.edu,9876543221,Mathematics,ananya@faculty`;
                 <GraduationCap className="w-4 h-4 text-emerald-600" />
                 Import Students
               </CardTitle>
-              <CardDescription>Upload student CSV to add to database</CardDescription>
+              <CardDescription>Upload student CSV ({importMode} mode)</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex gap-2">
@@ -4321,8 +4976,7 @@ T002,Prof. Ananya Das,ananya@college.edu,9876543221,Mathematics,ananya@faculty`;
                   onClick={() => downloadTemplate('students')}
                   className="rounded-xl flex-1"
                 >
-                  <Download className="w-4 h-4 mr-1" />
-                  Download Template
+                  <Download className="w-4 h-4 mr-1" /> Template
                 </Button>
                 <input
                   ref={studentCsvRef}
@@ -4342,7 +4996,7 @@ T002,Prof. Ananya Das,ananya@college.edu,9876543221,Mathematics,ananya@faculty`;
                   ) : (
                     <Upload className="w-4 h-4 mr-1" />
                   )}
-                  Import Students CSV
+                  Import CSV
                 </Button>
               </div>
 
@@ -4350,6 +5004,96 @@ T002,Prof. Ananya Das,ananya@college.edu,9876543221,Mathematics,ananya@faculty`;
                 <p className="font-medium text-foreground mb-1">Required columns:</p>
                 <p><span className="text-red-500 font-medium">collegeId*</span>, <span className="text-red-500 font-medium">name*</span>, <span className="text-red-500 font-medium">password*</span>, email, phone, branch, section, year, parentEmail, parentPhone</p>
                 <p className="mt-1 text-yellow-600">* Password is required for each student</p>
+              </div>
+            </CardContent>
+          </Card>
+          {/* Academic Data Initialization */}
+          <Card className="border-0 shadow-md rounded-2xl bg-emerald-50/50 dark:bg-emerald-900/10">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <Database className="w-4 h-4 text-emerald-600" />
+                Academic Data Management
+              </CardTitle>
+              <CardDescription>Initialize assessments and activity points for all students</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-xs text-muted-foreground">
+                This process will recalculate risk assessments and Activity Points for all registered students based on their existing academic, attendance, and exam records.
+              </p>
+              <Button
+                onClick={handleInitializeAcademic}
+                className="w-full rounded-xl bg-emerald-600 hover:bg-emerald-700 h-10"
+                disabled={initializingAcademic}
+              >
+                {initializingAcademic ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                ) : (
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                )}
+                Initialize ALL Student Academic Records
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Academic CSV Import */}
+        <TabsContent value="academic" className="space-y-4 mt-4">
+          <Card className="border-0 shadow-md rounded-2xl">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <GraduationCap className="w-4 h-4 text-orange-600" />
+                Import Subject Grades
+              </CardTitle>
+              <CardDescription>Upload classic CSV format for subject-level results</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => downloadTemplate('academic')}
+                  className="rounded-xl flex-1"
+                >
+                  <Download className="w-4 h-4 mr-1" /> Template
+                </Button>
+                <input
+                  ref={cgpaCsvRef}
+                  type="file"
+                  accept=".csv"
+                  className="hidden"
+                  onChange={handleCgpaImport}
+                />
+                <Button
+                  size="sm"
+                  onClick={() => cgpaCsvRef.current?.click()}
+                  disabled={importing}
+                  className="rounded-xl flex-1 bg-orange-600 hover:bg-orange-700"
+                >
+                  {importing ? (
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-1" />
+                  ) : (
+                    <Upload className="w-4 h-4 mr-1" />
+                  )}
+                  Import CSV
+                </Button>
+              </div>
+
+              <div className="p-3 rounded-xl bg-gray-50 dark:bg-gray-800/50 text-xs text-muted-foreground space-y-2">
+                <div>
+                  <p className="font-semibold text-foreground">Format Instructions: Direct Subject Marks Upload</p>
+                  <p className="mt-1">This tool parses traditional subject result formats seamlessly. The SGPA/CGPA is <span className="font-semibold italic font-medium">auto-calculated</span> based on the individual credits and grades you upload! No initial CGPA or SGPA columns are required.</p>
+                </div>
+                <div>
+                  <p className="mt-2 text-primary font-medium">Required Columns:</p>
+                  <ul className="list-disc list-inside mt-1 ml-1 space-y-1">
+                    <li><span className="font-medium text-foreground">collegeId</span> (Must map to an existing student)</li>
+                    <li><span className="font-medium text-foreground">Subject Code</span> (e.g., CSE-100)</li>
+                    <li><span className="font-medium text-foreground">Grade</span> (e.g., A, B+, F(Th))</li>
+                  </ul>
+                  <p className="mt-3 text-emerald-700 dark:text-emerald-400 font-medium">Supported Optional Columns:</p>
+                  <p className="mt-1">Subject Name, Credit, Sem, Subject Type (Subject Type is safely ignored/skipped if you include it in the download).</p>
+                </div>
+                <p className="border-t border-gray-200 dark:border-gray-700 pt-2 text-black dark:text-gray-300">If <span className="font-semibold">Sem</span> is undefined, the imported grades map to the student's current active semester.</p>
               </div>
             </CardContent>
           </Card>
@@ -4363,7 +5107,7 @@ T002,Prof. Ananya Das,ananya@college.edu,9876543221,Mathematics,ananya@faculty`;
                 <UserCheck className="w-4 h-4 text-purple-600" />
                 Import Faculty
               </CardTitle>
-              <CardDescription>Upload faculty CSV to add to database</CardDescription>
+              <CardDescription>Upload faculty CSV ({importMode} mode)</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex gap-2">
@@ -4373,8 +5117,7 @@ T002,Prof. Ananya Das,ananya@college.edu,9876543221,Mathematics,ananya@faculty`;
                   onClick={() => downloadTemplate('faculty')}
                   className="rounded-xl flex-1"
                 >
-                  <Download className="w-4 h-4 mr-1" />
-                  Download Template
+                  <Download className="w-4 h-4 mr-1" /> Template
                 </Button>
                 <input
                   ref={facultyCsvRef}
@@ -4394,7 +5137,7 @@ T002,Prof. Ananya Das,ananya@college.edu,9876543221,Mathematics,ananya@faculty`;
                   ) : (
                     <Upload className="w-4 h-4 mr-1" />
                   )}
-                  Import Faculty CSV
+                  Import CSV
                 </Button>
               </div>
 
@@ -4407,52 +5150,132 @@ T002,Prof. Ananya Das,ananya@college.edu,9876543221,Mathematics,ananya@faculty`;
           </Card>
         </TabsContent>
 
-        {/* Timetable Import */}
-        <TabsContent value="timetable" className="space-y-4 mt-4">
+        {/* Attendance CSV Import */}
+        <TabsContent value="attendance" className="space-y-4 mt-4">
           <Card className="border-0 shadow-md rounded-2xl">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                <Calendar className="w-4 h-4 text-blue-600" />
-                Import Timetable
+                <CheckCircle2 className="w-4 h-4 text-blue-600" />
+                Import Daily Attendance
               </CardTitle>
-              <CardDescription>Upload Excel file (.xlsx or .xls) to import timetable</CardDescription>
+              <CardDescription>Upload daily attendance logs for students</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => downloadTemplate('attendance')}
+                  className="rounded-xl flex-1"
+                >
+                  <Download className="w-4 h-4 mr-1" /> Template
+                </Button>
                 <input
-                  ref={timetableRef}
+                  ref={attendanceCsvRef}
                   type="file"
-                  accept=".xlsx,.xls"
+                  accept=".csv"
                   className="hidden"
-                  onChange={handleTimetableImport}
+                  onChange={handleAttendanceImport}
                 />
                 <Button
                   size="sm"
-                  onClick={() => timetableRef.current?.click()}
+                  onClick={() => attendanceCsvRef.current?.click()}
                   disabled={importing}
-                  className="rounded-xl flex-1 bg-blue-600 hover:bg-blue-700"
+                  className="rounded-xl flex-1 bg-blue-600 hover:bg-blue-700 text-white"
                 >
                   {importing ? (
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-1" />
                   ) : (
                     <Upload className="w-4 h-4 mr-1" />
                   )}
-                  Import Timetable Excel
+                  Import Attendance
                 </Button>
               </div>
 
               <div className="p-3 rounded-xl bg-gray-50 dark:bg-gray-800/50 text-xs text-muted-foreground">
-                <p className="font-medium text-foreground mb-1">Expected format:</p>
-                <p>The Excel file should have columns for Day, Section, and time slots (7:30-8:30, 8:40-9:40, etc.)</p>
-                <p className="mt-1">Each row represents a section's schedule for a particular day.</p>
-                <p className="mt-1 text-yellow-600">Note: This will replace all existing timetable entries.</p>
+                <p className="font-medium text-foreground mb-1">Required columns:</p>
+                <p><span className="text-blue-500 font-medium">collegeId*</span>, <span className="text-blue-500 font-medium">date*</span>, <span className="text-blue-500 font-medium">subject*</span>, <span className="text-blue-500 font-medium">status*</span>, topicCovered</p>
+                <p className="mt-1">Date format: YYYY-MM-DD. Status: present / absent / late</p>
               </div>
             </CardContent>
           </Card>
         </TabsContent>
+
+        {/* Timetable Import */}
+        <TabsContent value="timetable" className="space-y-4 mt-4">
+          <Card className="border-0 shadow-md rounded-2xl">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-indigo-600" />
+                Import Timetable
+              </CardTitle>
+              <CardDescription>Upload Excel for current session ({importMode} mode)</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <input ref={timetableRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleTimetableImport} />
+              <Button size="sm" onClick={() => timetableRef.current?.click()} disabled={importing} className="w-full rounded-xl bg-indigo-600 hover:bg-indigo-700">
+                {importing ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                ) : (
+                  <Upload className="w-4 h-4 mr-2" />
+                )}
+                Upload Timetable Excel
+              </Button>
+              <p className="text-[10px] text-muted-foreground px-2">Format: Day, Section, 07:30, 08:40, 09:50, 11:00, 13:00, 14:00 </p>
+              <p className="mt-1">Each row represents a section's schedule for a particular day.</p>
+              <p className="mt-1 text-yellow-600">Note: This will replace all existing timetable entries.</p>
+            </CardContent>
+          </Card>
+
+          {/* Active Timetables Inventory (Only visible in Timetable tab) */}
+          <div className="pt-4 space-y-3">
+            <h3 className="text-md font-bold flex items-center gap-2">
+              <Database className="w-4 h-4 text-slate-500" />
+              Current Timetables in System
+            </h3>
+            <Card className="border-0 shadow-md rounded-2xl">
+              <CardContent className="p-4">
+                {timetableSummaries.length === 0 ? (
+                  <div className="text-center py-6 text-sm text-muted-foreground">
+                    No timetables uploaded yet.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                    {timetableSummaries.map((s, idx) => (
+                      <div key={idx} className="p-2 rounded-xl bg-slate-50 dark:bg-slate-900/30 border border-slate-100 dark:border-slate-800 flex items-center justify-between group">
+                        <div className="text-[11px]">
+                          <p className="font-bold">{s.section}</p>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => handleViewTimetable(s.section)}
+                            className="h-7 w-7 rounded-lg text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => handleDeleteTimetable(s.section, null)}
+                            className="h-7 w-7 rounded-lg text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/30 opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                          <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
       </Tabs>
 
-      {/* Delete Data Section */}
+      {/* Advanced Deletion */}
       <Card className="border-0 shadow-md rounded-2xl border-red-200 dark:border-red-900">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-semibold flex items-center gap-2 text-red-600">
@@ -4856,7 +5679,7 @@ function FacultyDashboard() {
       return;
     }
     const student = students.find(s => s.id === warningData.studentId);
-    
+
     try {
       const res = await fetch('/api/messages', {
         method: 'POST',
@@ -4890,7 +5713,7 @@ function FacultyDashboard() {
       return;
     }
     const student = students.find(s => s.id === alertData.studentId);
-    
+
     try {
       const res = await fetch('/api/messages', {
         method: 'POST',
@@ -5518,7 +6341,7 @@ function StudentsPage() {
               <div className="flex items-center gap-3">
                 <Avatar className="w-12 h-12">
                   <AvatarFallback className="bg-slate-500 text-white">
-                    {selectedStudent.name?.charAt(0)}
+                    {getInitial(selectedStudent.name)}
                   </AvatarFallback>
                 </Avatar>
                 <div>
@@ -5571,10 +6394,27 @@ function StudentsPage() {
 // ============ RISK ANALYSIS PAGE (Faculty) ============
 
 function RiskAnalysisPage() {
-  const { riskStudents } = useAppStore();
+  const { riskStudents, courses } = useAppStore();
   const [selectedStudent, setSelectedStudent] = useState<StudentRiskInfo | null>(null);
-  const highRiskStudents = riskStudents.filter(s => s.riskLevel === 'high');
-  const mediumRiskStudents = riskStudents.filter(s => s.riskLevel === 'medium');
+  const [selectedSubject, setSelectedSubject] = useState<string>('all');
+
+  // Derive available subjects from courses mapping (which stores ALL timetable entries), stripping non-academic blocks
+  const availableSubjects = [...new Set(courses.map((c: any) => c.name).filter(Boolean))]
+    .filter((name: string) => !name.toLowerCase().includes('break') && !name.toLowerCase().includes('lunch'))
+    .sort();
+
+  // Determine which sections take the selected subject
+  const sectionsTaught = selectedSubject === 'all'
+    ? []
+    : [...new Set(courses.filter((c: any) => c.name === selectedSubject).map((c: any) => c.section).filter(Boolean))];
+
+  // Filter riskStudents based on whether they belong to a section that takes this subject
+  const filteredStudents = selectedSubject === 'all'
+    ? riskStudents
+    : riskStudents.filter((s: any) => sectionsTaught.includes(s.section));
+
+  const highRiskStudents = filteredStudents.filter((s: any) => s.riskLevel === 'high');
+  const mediumRiskStudents = filteredStudents.filter((s: any) => s.riskLevel === 'medium');
 
   const getRiskColor = (level: string) => {
     switch (level) {
@@ -5587,9 +6427,25 @@ function RiskAnalysisPage() {
   return (
     <>
       <div className="space-y-4">
-        <div>
-          <h2 className="text-xl font-bold">Risk Analysis</h2>
-          <p className="text-sm text-muted-foreground">Identify at-risk students • Click on a card to view details</p>
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+          <div>
+            <h2 className="text-xl font-bold">Risk Analysis</h2>
+            <p className="text-sm text-muted-foreground">Identify at-risk students • Click on a card to view details</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Label className="text-xs font-medium whitespace-nowrap">Filter by Subject:</Label>
+            <Select value={selectedSubject} onValueChange={setSelectedSubject}>
+              <SelectTrigger className="w-[180px] rounded-xl h-9">
+                <SelectValue placeholder="All Subjects" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Subjects</SelectItem>
+                {availableSubjects.map((sub: any) => (
+                  <SelectItem key={sub} value={sub}>{sub}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         {/* High Risk Students */}
@@ -5619,7 +6475,7 @@ function RiskAnalysisPage() {
                         <div className="flex items-center gap-2">
                           <Avatar className="w-8 h-8">
                             <AvatarFallback className="bg-red-500 text-white text-xs">
-                              {student.name.charAt(0)}
+                              {getInitial(student.name)}
                             </AvatarFallback>
                           </Avatar>
                           <div>
@@ -5635,7 +6491,7 @@ function RiskAnalysisPage() {
                           <div className="text-muted-foreground">Att</div>
                         </div>
                         <div className="bg-purple-100 dark:bg-purple-900/30 rounded p-1">
-                          <div className="font-semibold text-purple-700">{(student as any).cgpaPoints ?? 0}</div>
+                          <div className="font-semibold text-purple-700">{((student as any).cgpa ?? 0).toFixed(2)}</div>
                           <div className="text-muted-foreground">CGPA</div>
                         </div>
                         <div className="bg-green-100 dark:bg-green-900/30 rounded p-1">
@@ -5683,7 +6539,7 @@ function RiskAnalysisPage() {
                         <div className="flex items-center gap-2">
                           <Avatar className="w-7 h-7">
                             <AvatarFallback className="bg-orange-500 text-white text-xs">
-                              {student.name.charAt(0)}
+                              {getInitial(student.name)}
                             </AvatarFallback>
                           </Avatar>
                           <div>
@@ -5699,7 +6555,7 @@ function RiskAnalysisPage() {
                           <div className="text-muted-foreground">Att</div>
                         </div>
                         <div className="bg-purple-100 dark:bg-purple-900/30 rounded p-1">
-                          <div className="font-semibold text-purple-700">{(student as any).cgpaPoints ?? 0}</div>
+                          <div className="font-semibold text-purple-700">{((student as any).cgpa ?? 0).toFixed(2)}</div>
                           <div className="text-muted-foreground">CGPA</div>
                         </div>
                         <div className="bg-green-100 dark:bg-green-900/30 rounded p-1">
@@ -5868,10 +6724,10 @@ function MessagingPage() {
                       s.collegeId.toLowerCase().includes(searchTerm.toLowerCase())
                     )
                     .map((student) => (
-                    <SelectItem key={student.id} value={student.id}>
-                      {student.name} ({student.collegeId}){student.branch ? ` - ${student.branch}` : ''}
-                    </SelectItem>
-                  ))}
+                      <SelectItem key={student.id} value={student.id}>
+                        {student.name} ({student.collegeId}){student.branch ? ` - ${student.branch}` : ''}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
@@ -5962,9 +6818,9 @@ Date: ${new Date().toLocaleDateString()}
 Total Students: ${total}
 
 Risk Distribution:
-- High Risk: ${high} (${((high/total)*100).toFixed(1)}%)
-- Medium Risk: ${medium} (${((medium/total)*100).toFixed(1)}%)
-- Low Risk: ${low} (${((low/total)*100).toFixed(1)}%)
+- High Risk: ${high} (${((high / total) * 100).toFixed(1)}%)
+- Medium Risk: ${medium} (${((medium / total) * 100).toFixed(1)}%)
+- Low Risk: ${low} (${((low / total) * 100).toFixed(1)}%)
 
 Academic Averages:
 - Average Attendance: ${avgAtt}%
@@ -6048,38 +6904,52 @@ Academic Averages:
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-        {user?.role !== 'admin' && (
-          <Card className="border-0 shadow-md rounded-2xl hover:shadow-lg transition-shadow cursor-pointer" onClick={handleExportCSV}>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-900/30 flex items-center justify-center">
-                  <FileText className="w-5 h-5 text-slate-600" />
-                </div>
-                <div>
-                  <h3 className="font-medium text-sm">Student CSV</h3>
-                  <p className="text-xs text-muted-foreground">Export as spreadsheet</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        <Card className="border-0 shadow-md rounded-2xl hover:shadow-lg transition-shadow cursor-pointer" onClick={handleExportFullJSON}>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center">
-                <Database className="w-5 h-5 text-indigo-600" />
-              </div>
-              <div>
-                <h3 className="font-medium text-sm">Full Dataset JSON</h3>
-                <p className="text-xs text-muted-foreground">Complete database dump</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {user?.role !== 'admin' && (
+        {user?.role === 'admin' ? (
           <>
+            <Card className="border-0 shadow-md rounded-2xl hover:shadow-lg transition-shadow cursor-pointer" onClick={handleExportCSV}>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-900/30 flex items-center justify-center">
+                    <FileText className="w-5 h-5 text-slate-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-medium text-sm">User List CSV</h3>
+                    <p className="text-xs text-muted-foreground">Export all registered users</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-0 shadow-md rounded-2xl hover:shadow-lg transition-shadow cursor-pointer" onClick={handleExportFullJSON}>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center">
+                    <Database className="w-5 h-5 text-indigo-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-medium text-sm">Full Dataset JSON</h3>
+                    <p className="text-xs text-muted-foreground">Complete database dump</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </>
+        ) : (
+          <>
+            <Card className="border-0 shadow-md rounded-2xl hover:shadow-lg transition-shadow cursor-pointer" onClick={handleExportCSV}>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-900/30 flex items-center justify-center">
+                    <FileText className="w-5 h-5 text-slate-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-medium text-sm">Student CSV</h3>
+                    <p className="text-xs text-muted-foreground">Export as spreadsheet</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
             <Card className="border-0 shadow-md rounded-2xl hover:shadow-lg transition-shadow cursor-pointer" onClick={handleExportRiskReport}>
               <CardContent className="p-4">
                 <div className="flex items-center gap-3">
@@ -6149,7 +7019,7 @@ Academic Averages:
 // ============ MAIN APP COMPONENT ============
 
 function MainApp() {
-  const { user, activeTab, sidebarCollapsed, setCourses, setRiskStudents, dataUpdateCounter } = useAppStore();
+  const { user, activeTab, sidebarCollapsed, setCourses, setRiskStudents, fetchMessages, dataUpdateCounter } = useAppStore();
 
   // Global Data Synchronization
   useEffect(() => {
@@ -6175,7 +7045,12 @@ function MainApp() {
         }
       } catch (err) { console.error('Timetable sync failed', err); }
 
-      // 2. If Faculty/Admin, sync student list
+      // 2. Fetch messages for the current user to keep chat history in sync
+      try {
+        await fetchMessages();
+      } catch (err) { console.error('Messages sync failed', err); }
+
+      // 3. If Faculty/Admin, sync student list
       if (user?.role !== 'student') {
         try {
           const res = await fetch('/api/users?role=student');
@@ -6196,7 +7071,7 @@ function MainApp() {
     };
 
     syncGlobalData();
-  }, [user?.role, setCourses, setRiskStudents, dataUpdateCounter]);
+  }, [user?.role, setCourses, setRiskStudents, fetchMessages, dataUpdateCounter]);
 
   const renderContent = () => {
     if (user?.role === 'student') {
@@ -6215,6 +7090,7 @@ function MainApp() {
         case 'dashboard': return <AdminDashboard />;
         case 'users': return <AdminUsersPage />;
         case 'import': return <AdminImportPage />;
+        case 'timetable': return <TimetablePage />;
         case 'reports': return <ReportsPage />;
         case 'settings': return <SettingsPage />;
         default: return <AdminDashboard />;
@@ -6224,6 +7100,7 @@ function MainApp() {
         case 'dashboard': return <FacultyDashboard />;
         case 'students': return <StudentsPage />;
         case 'attendance': return <AttendanceUpdatePage />;
+        case 'timetable': return <TimetablePage />;
         case 'risk-analysis': return <RiskAnalysisPage />;
         case 'messaging': return <MessagingPage />;
         case 'reports': return <ReportsPage />;
@@ -6258,8 +7135,25 @@ function MainApp() {
 // ============ ROOT PAGE ============
 
 export default function Page() {
-  const { user, setUser, setCourses, setAssignments, setExams, setMarks, setAttendance, setPoints, theme } = useAppStore();
+  const { user, setUser, setToken, setCourses, setAssignments, setExams, setMarks, setAttendance, setPoints, theme } = useAppStore();
   const [isLoading, setIsLoading] = useState(true);
+
+  // Restore session from localStorage on mount
+  useEffect(() => {
+    try {
+      const savedUser = localStorage.getItem('edutrack_user');
+      const savedToken = localStorage.getItem('edutrack_token');
+      if (savedUser && savedToken) {
+        const parsedUser = JSON.parse(savedUser);
+        setUser(parsedUser);
+        setToken(savedToken);
+      }
+    } catch (e) {
+      // Invalid data, clear it
+      localStorage.removeItem('edutrack_user');
+      localStorage.removeItem('edutrack_token');
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Apply theme on initial load
   useEffect(() => {
@@ -6317,12 +7211,13 @@ export default function Page() {
     initDemoData();
   }, [setCourses, setAssignments, setExams, setMarks, setAttendance, setPoints]);
 
-  const handleLogin = (loggedInUser: User) => {
+  const handleLogin = (loggedInUser: User, token: string) => {
     const userWithLoginTime = {
       ...loggedInUser,
       loginTime: new Date().toISOString()
     };
     setUser(userWithLoginTime);
+    setToken(token);
   };
 
   if (isLoading) {
