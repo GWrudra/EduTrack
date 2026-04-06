@@ -1,0 +1,3 @@
+{
+  "/api/users/delete-recent/route": "app/api/users/delete-recent/route.js"
+}
