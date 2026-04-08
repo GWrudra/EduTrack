@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3000 -H 0.0.0.0",
-    "build": "cd ../backend && npx prisma generate && cd ../frontend && next build",
+    "build": "mkdir -p prisma && cp ../backend/prisma/schema.prisma ./prisma/schema.prisma && npx prisma generate && next build",
     "start": "next start",
     "lint": "eslint .",
     "db:push": "prisma db push",
