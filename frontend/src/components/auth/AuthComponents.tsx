@@ -18,10 +18,12 @@ export function LoginPage({ onLogin }: { onLogin: (user: User, token: string) =>
   const [password, setPassword] = useState('');
   const [showForgot, setShowForgot] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setError('');
 
     try {
       const res = await fetch('/api/auth/login', {
@@ -36,10 +38,14 @@ export function LoginPage({ onLogin }: { onLogin: (user: User, token: string) =>
         onLogin(data.user, data.token);
         toast.success('Login successful!');
       } else {
-        toast.error(data.message || 'Login failed');
+        const msg = data.message || 'Login failed';
+        setError(msg);
+        toast.error(msg);
       }
     } catch (error) {
-      toast.error('Connection error');
+      const msg = 'Connection error. Make sure the server is running.';
+      setError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -55,6 +61,12 @@ export function LoginPage({ onLogin }: { onLogin: (user: User, token: string) =>
         <CardContent className="p-6">
           {!showForgot ? (
             <form onSubmit={handleLogin} className="space-y-4">
+              {error && (
+                <div className="flex items-center gap-2 p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-xl text-red-700 dark:text-red-400 text-sm">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  <span>{error}</span>
+                </div>
+              )}
               <div className="space-y-2">
                 <Label htmlFor="collegeId">Roll No / Faculty ID</Label>
                 <Input

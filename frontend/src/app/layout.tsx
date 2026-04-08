@@ -1,7 +1,9 @@
+import Script from "next/script";
 import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
+import { ThemeProvider } from "next-themes";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -19,8 +21,18 @@ export const metadata: Metadata = {
   description: "Comprehensive student affairs management system for tracking courses, assignments, exams, and academic progress.",
   keywords: ["EduTrack", "Student Management", "Academic", "Education", "Next.js"],
   authors: [{ name: "EduTrack Team" }],
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "EduTrack",
+  },
+  formatDetection: {
+    telephone: false,
+  },
   icons: {
     icon: "/logo.svg",
+    apple: "/icon-192.png",
   },
   openGraph: {
     title: "EduTrack - Student Affairs Management",
@@ -39,8 +51,25 @@ export default function RootLayout({
       <body
         className={`${inter.variable} ${jetbrainsMono.variable} font-sans antialiased bg-background text-foreground`}
       >
-        {children}
-        <Toaster position="top-right" richColors />
+        <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
+          {children}
+          <Toaster position="top-right" richColors />
+        </ThemeProvider>
+        
+        {/* Service Worker Registration */}
+        <Script id="register-sw" strategy="afterInteractive">
+          {`
+            if ('serviceWorker' in navigator) {
+              window.addEventListener('load', function() {
+                navigator.serviceWorker.register('/sw.js').then(function(reg) {
+                  console.log('Service Worker Registered');
+                }).catch(function(err) {
+                  console.log('Service Worker Failed to Register', err);
+                });
+              });
+            }
+          `}
+        </Script>
       </body>
     </html>
   );

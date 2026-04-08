@@ -247,7 +247,18 @@ export const useAppStore = create<AppState>()(
           localStorage.removeItem('edutrack_user');
           localStorage.removeItem('edutrack_token');
         }
-        set({ user: null, isAuthenticated: false, token: null });
+        set({ 
+          user: null, 
+          isAuthenticated: false, 
+          token: null,
+          messages: [],
+          courses: [],
+          assignments: [],
+          exams: [],
+          marks: [],
+          attendance: [],
+          riskStudents: []
+        });
       },
       setActiveTab: (activeTab) => set({ activeTab }),
       setSidebarOpen: (sidebarOpen) => set({ sidebarOpen }),

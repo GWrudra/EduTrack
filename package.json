@@ -1,6 +1,7 @@
 {
-  "name": "edutrack-root",
+  "name": "edutrack",
   "version": "1.0.0",
+  "description": "EduTrack - Student Affairs Management System built with Next.js 16, Prisma & SQLite",
   "private": true,
   "scripts": {
     "dev": "npm --prefix frontend run dev",
@@ -13,3 +14,4 @@
     "postinstall": "npm --prefix frontend install"
   }
 }
+

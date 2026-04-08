@@ -60,8 +60,15 @@ export default function EduTrackApp() {
     sidebarCollapsed, 
     messages,
     setUser,
-    setToken
+    setToken,
+    fetchMessages
   } = useAppStore();
+
+  useEffect(() => {
+    if (user) {
+      fetchMessages();
+    }
+  }, [user, fetchMessages]);
   
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);

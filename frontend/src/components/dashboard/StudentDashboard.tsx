@@ -56,17 +56,48 @@ export function StudentDashboard() {
           const todayMapped = today === 0 ? 0 : today; // 0 is Sunday, 1 is Monday etc
           const filtered = data.entries.filter((e: any) => e.dayOfWeek === todayMapped);
           const sorted = filtered.sort((a: any, b: any) => (a.startTime || '').localeCompare(b.startTime || ''));
-          const merged: any[] = [];
-          for (let i = 0; i < sorted.length; i++) {
-            const current = sorted[i];
-            const last = merged[merged.length - 1];
-            if (last && (last.subject === current.subject)) {
-              last.endTime = current.endTime;
-            } else {
-              merged.push({ ...current });
+          
+          // Deduplicate by time slot - when multiple subjects share the same startTime,
+          // they're batch-split alternatives (e.g. different LABs for different batches).
+          // Keep only one entry per unique time slot.
+          const seenSlots = new Set<string>();
+          const deduplicated = sorted.filter((entry: any) => {
+            const slotKey = `${entry.startTime}-${entry.endTime}`;
+            if (seenSlots.has(slotKey)) return false;
+            seenSlots.add(slotKey);
+            return true;
+          });
+          
+          // Time slot sequence for extending LABs to 2 hours
+          const slotSequence = ['07:30', '08:40', '09:50', '11:00', '13:00', '14:00'];
+          const slotEndTimes: Record<string, string> = {
+            '07:30': '08:30', '08:40': '09:40', '09:50': '10:50',
+            '11:00': '12:00', '13:00': '14:00', '14:00': '15:00'
+          };
+          
+          // Extend LAB/AR CLASS to 2 hours if next slot is empty
+          const occupiedStarts = new Set(deduplicated.map((e: any) => e.startTime));
+          const extended = deduplicated.map((entry: any) => {
+            const isLabOrArClass = entry.subject?.includes('LAB') || 
+                                   entry.subject?.includes('AR CLASS') || 
+                                   entry.subject === 'PROJECT';
+            if (!isLabOrArClass) return entry;
+            
+            const currentIdx = slotSequence.indexOf(entry.startTime);
+            if (currentIdx === -1 || currentIdx >= slotSequence.length - 1) return entry;
+            
+            const nextStart = slotSequence[currentIdx + 1];
+            // Don't extend across lunch (from 11:00 to 13:00)
+            if (entry.startTime === '11:00') return entry;
+            
+            // If next slot is not occupied, extend this entry
+            if (!occupiedStarts.has(nextStart)) {
+              return { ...entry, endTime: slotEndTimes[nextStart] || entry.endTime };
             }
-          }
-          setTodayCourses(merged);
+            return entry;
+          });
+          
+          setTodayCourses(extended);
         }
       } catch (error) {
         console.error('Failed to fetch today courses:', error);

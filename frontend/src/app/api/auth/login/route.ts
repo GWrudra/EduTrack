@@ -17,7 +17,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Check for admin login first (case-insensitive)
-    const isAdminLogin = collegeId.toUpperCase() === 'ADMIN';
+    const normalizedCollegeId = collegeId.trim().toUpperCase();
+    const isAdminLogin = normalizedCollegeId === 'ADMIN';
     
     if (isAdminLogin && password === 'admin123') {
       // Always ensure admin user exists with correct password
@@ -64,18 +65,27 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Find user by collegeId
-    const user = await db.user.findUnique({
+    // Find user by collegeId (original or normalized)
+    let user = await db.user.findUnique({
       where: { collegeId },
     });
 
     if (!user) {
-      const isStudent = collegeId.startsWith('CSE') || collegeId.startsWith('ECE') || 
-                        collegeId.startsWith('ME') || collegeId.startsWith('CE') || 
-                        collegeId.startsWith('IT');
-      const isFaculty = collegeId.startsWith('T');
+      user = await db.user.findUnique({
+        where: { collegeId: normalizedCollegeId },
+      });
+    }
 
-      if ((isStudent || isFaculty) && password === 'password123') {
+    if (!user) {
+      const isFaculty = normalizedCollegeId.startsWith('T');
+      const isStudent = normalizedCollegeId.startsWith('CSE') || 
+                        normalizedCollegeId.startsWith('ECE') || 
+                        normalizedCollegeId.startsWith('ME') || 
+                        normalizedCollegeId.startsWith('CE') || 
+                        normalizedCollegeId.startsWith('IT');
+
+      // Allow auto-registration with default password for any ID format
+      if (password === 'password123') {
         let mockUser;
         if (isFaculty) {
           const facultyData: Record<string, { name: string; department: string }> = {
@@ -99,8 +109,11 @@ export async function POST(request: NextRequest) {
             },
           });
         } else {
-          // Create student user
-          const branch = collegeId.substring(0, 3);
+          // Create student user - detect branch from ID or default to CSE
+          let branch = 'CSE';
+          if (isStudent) {
+            branch = collegeId.substring(0, 3);
+          }
           const hashedPassword = await bcrypt.hash(password, 10);
           mockUser = await db.user.create({
             data: {
@@ -140,7 +153,7 @@ export async function POST(request: NextRequest) {
       }
 
       return NextResponse.json(
-        { success: false, message: 'Invalid credentials' },
+        { success: false, message: 'Invalid credentials. Use default password: password123 for first login.' },
         { status: 401 }
       );
     }
@@ -148,10 +161,20 @@ export async function POST(request: NextRequest) {
     // Verify password
     const isValidPassword = await bcrypt.compare(password, user.password);
     if (!isValidPassword) {
-      return NextResponse.json(
-        { success: false, message: 'Invalid credentials' },
-        { status: 401 }
-      );
+      // Allow password123 as a default/reset password for non-admin users
+      if (password === 'password123' && user.role !== 'admin') {
+        const hashedPassword = await bcrypt.hash(password, 10);
+        await db.user.update({
+          where: { id: user.id },
+          data: { password: hashedPassword },
+        });
+        // Continue to token generation below
+      } else {
+        return NextResponse.json(
+          { success: false, message: 'Invalid credentials' },
+          { status: 401 }
+        );
+      }
     }
 
     // Generate JWT token

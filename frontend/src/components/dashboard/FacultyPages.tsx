@@ -551,7 +551,10 @@ export function MessagingPage() {
                  {m.messageType==='warning' ? <AlertTriangle className="w-5 h-5 text-orange-600"/> : <Bell className="w-5 h-5 text-blue-600"/>}
               </div>
               <div className="flex-1 min-w-0">
-                 <p className="text-sm font-bold">{m.title}</p>
+                 <p className="text-sm font-bold flex items-center gap-2">
+                   {m.title}
+                   {m.senderName && <span className="text-[10px] font-normal text-muted-foreground bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded-sm">From: {m.senderName}</span>}
+                 </p>
                  <p className="text-xs text-muted-foreground line-clamp-1">{m.content}</p>
               </div>
               <Badge variant="outline" className="text-[10px] rounded-lg">{m.messageType}</Badge>

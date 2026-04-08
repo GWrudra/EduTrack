@@ -67,6 +67,7 @@ import {
 } from 'chart.js';
 import { Doughnut, Line as LineChart } from 'react-chartjs-2';
 import { toast } from 'sonner';
+import { useTheme } from 'next-themes';
 
 // Register Chart.js components
 if (typeof window !== 'undefined') {
@@ -755,12 +756,18 @@ export function AttendanceCGPAPage() {
                         const record = recentSemesterRecords.find(r => r.semester === sem);
                         const actualSem = sem > 8 ? (sem % 2 === 0 ? 2 : 1) : sem;
                         const semString = actualSem === 1 ? '1st' : actualSem === 2 ? '2nd' : actualSem === 3 ? '3rd' : actualSem + 'th';
-                        const examName = `BTech (${user?.branch || 'CSE'}) ${semString} Semester, ${record?.academicYear?.split('-')[0] || '2024'}`;
+                        // Enrollment-based session calculation logic
+                        const enrollmentYear = parseInt(user?.collegeId?.substring(0, 4) || '2023');
+                        const startYear = isNaN(enrollmentYear) ? 2023 : enrollmentYear;
+                        const semYear = startYear + Math.floor((sem - 1) / 2);
+                        const semSession = `${semYear}-${(semYear + 1).toString().slice(-2)}`;
+                        
+                        const examName = `BTech (${user?.branch || 'CSE'}) ${semString} Semester, ${semYear}`;
                         return (
                           <tr key={sem} className="border-b last:border-0 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer transition-colors" onClick={() => setPerformanceSemester(sem.toString())}>
                             <td className="py-3 px-4 text-center text-sm font-medium text-muted-foreground">{idx + 1}</td>
                             <td className="py-3 px-4 text-sm font-semibold text-blue-600 dark:text-blue-400 hover:underline">{examName}</td>
-                            <td className="py-3 px-4 text-center text-sm text-muted-foreground font-medium">{record?.academicYear || '2024-25'}</td>
+                            <td className="py-3 px-4 text-center text-sm text-muted-foreground font-medium">{record?.academicYear && record.academicYear !== '2024-25' ? record.academicYear : semSession}</td>
                           </tr>
                         );
                       })
@@ -777,7 +784,12 @@ export function AttendanceCGPAPage() {
               const mfs = subjectMarks.filter(m => m.semester === sem);
               const actualSem = sem > 8 ? (sem % 2 === 0 ? 2 : 1) : sem;
               const semString = actualSem === 1 ? '1st' : actualSem === 2 ? '2nd' : actualSem === 3 ? '3rd' : actualSem + 'th';
-              const examName = `BTech (${user?.branch || 'CSE'}) ${semString} Semester, ${record?.academicYear?.split('-')[0] || '2024'}`;
+              
+              const enrollmentYear = parseInt(user?.collegeId?.substring(0, 4) || '2023');
+              const startYear = isNaN(enrollmentYear) ? 2023 : enrollmentYear;
+              const semYear = startYear + Math.floor((sem - 1) / 2);
+              
+              const examName = `BTech (${user?.branch || 'CSE'}) ${semString} Semester, ${semYear}`;
               return (
                 <Card className="border-0 shadow-md rounded-2xl overflow-hidden min-w-full">
                   <CardHeader className="pb-3 border-b bg-slate-50 dark:bg-slate-900 flex flex-row items-center justify-between">
@@ -943,7 +955,11 @@ export function MessagesPage() {
                   <div className="flex gap-3">
                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${getMessageBg(m.messageType)}`}>{getMessageIcon(m.messageType)}</div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 font-medium"><span>{m.title}</span>{!m.isRead && <div className="w-2 h-2 rounded-full bg-primary" />}</div>
+                      <div className="flex items-center gap-2 font-medium">
+                          <span>{m.title}</span>
+                          {m.senderName && <span className="text-[10px] font-normal text-muted-foreground bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded-sm">From: {m.senderName}</span>}
+                          {!m.isRead && <div className="w-2 h-2 rounded-full bg-primary" />}
+                      </div>
                       <p className="text-xs text-muted-foreground line-clamp-1">{m.content}</p>
                       <div className="flex gap-2 mt-2 text-[10px] text-muted-foreground">
                         <Badge variant="outline" className="text-[10px] rounded-lg">{m.messageType}</Badge>
@@ -984,7 +1000,7 @@ export function MessagesPage() {
          <DialogContent className="rounded-2xl">
             {selectedMessage && (
               <>
-                <DialogHeader><DialogTitle>{selectedMessage.title}</DialogTitle><DialogDescription>{new Date(selectedMessage.sentAt).toLocaleString()}</DialogDescription></DialogHeader>
+                <DialogHeader><DialogTitle>{selectedMessage.title}</DialogTitle><DialogDescription>From {selectedMessage.senderName} • {new Date(selectedMessage.sentAt).toLocaleString()}</DialogDescription></DialogHeader>
                 <div className="p-4 bg-muted rounded-xl text-sm whitespace-pre-wrap">{selectedMessage.content}</div>
                 <DialogFooter><Button onClick={()=>setSelectedMessage(null)} className="rounded-xl">Close</Button></DialogFooter>
               </>
@@ -998,7 +1014,8 @@ export function MessagesPage() {
 // ============ SETTINGS COMPONENT ============
 
 export function SettingsPage() {
-  const { theme, setTheme, importData } = useAppStore();
+  const { importData } = useAppStore();
+  const { theme, setTheme } = useTheme();
 
   const handleExport = async () => {
     try {

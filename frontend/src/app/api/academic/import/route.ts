@@ -81,6 +81,14 @@ export async function POST(request: NextRequest) {
 
       const targetSemester = semStr ? parseInt(semStr) : (student.semester || (student.year ? student.year * 2 : 1));
       
+      // Calculate dynamic academic year
+      const now = new Date();
+      const currentAcadYear = now.getMonth() >= 7 ? now.getFullYear() : now.getFullYear() - 1;
+      const studentCurrentYear = student.year || Math.ceil(targetSemester / 2);
+      const yearDiff = studentCurrentYear - Math.ceil(targetSemester / 2);
+      const targetYear = currentAcadYear - yearDiff;
+      const calculatedAcadYear = `${targetYear}-${(targetYear + 1).toString().slice(-2)}`;
+
       const subjectCode = cols[scIndex];
       const subjectName = snIndex !== -1 ? cols[snIndex] : subjectCode;
       const creditStr = crIndex !== -1 ? cols[crIndex] : '3';
@@ -110,6 +118,7 @@ export async function POST(request: NextRequest) {
             gradePoints,
             credits,
             totalMarks: gradePoints * 10,
+            academicYear: calculatedAcadYear
           },
           create: {
             studentId: student.id,
@@ -120,7 +129,7 @@ export async function POST(request: NextRequest) {
             gradePoints,
             credits,
             totalMarks: gradePoints * 10,
-            academicYear: '2024-25',
+            academicYear: calculatedAcadYear,
           }
         });
 
@@ -151,6 +160,14 @@ export async function POST(request: NextRequest) {
       
       const sgpa = totalCredits > 0 ? parseFloat((totalEarned / totalCredits).toFixed(2)) : 0;
       
+      // Calculate dynamic academic year for SemesterRecord too
+      const student = studentMap.get((await db.user.findUnique({ where: { id: studentId } }))?.collegeId || '');
+      const studentCurrentYear = student?.year || Math.ceil(semester / 2);
+      const currentYearNow = new Date().getMonth() >= 7 ? new Date().getFullYear() : new Date().getFullYear() - 1;
+      const yrDiff = studentCurrentYear - Math.ceil(semester / 2);
+      const targetYr = currentYearNow - yrDiff;
+      const calculatedSRYear = `${targetYr}-${((targetYr + 1) % 100).toString().padStart(2, '0')}`;
+
       await db.semesterRecord.upsert({
         where: {
           studentId_semester: {
@@ -162,7 +179,8 @@ export async function POST(request: NextRequest) {
           sgpa,
           cgpa: sgpa, // Simple approximation, would need all semesters to be perfect
           creditsEarned: totalCredits,
-          creditsTotal: totalCredits
+          creditsTotal: totalCredits,
+          academicYear: calculatedSRYear
         },
         create: {
           studentId,
@@ -171,7 +189,7 @@ export async function POST(request: NextRequest) {
           cgpa: sgpa,
           creditsEarned: totalCredits,
           creditsTotal: totalCredits,
-          academicYear: '2024-25'
+          academicYear: calculatedSRYear
         }
       });
     }

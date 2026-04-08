@@ -22,6 +22,7 @@ import {
   DialogFooter 
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   GraduationCap, 
   UserCheck, 
@@ -176,6 +177,11 @@ export function AdminUsersPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 20;
 
+  const [selectedUserForPassword, setSelectedUserForPassword] = useState<any>(null);
+  const [newSingleUserPassword, setNewSingleUserPassword] = useState('');
+  const [showPasswordDialog, setShowPasswordDialog] = useState(false);
+  const [updatingPassword, setUpdatingPassword] = useState(false);
+
   const fetchUsers = async () => {
     setLoading(true);
     try {
@@ -208,7 +214,7 @@ export function AdminUsersPage() {
   const handleDeleteUser = async (userId: string) => {
     if (!confirm('Are you sure you want to delete this user? This will remove all their records.')) return;
     try {
-      const res = await fetch(`/api/users?id=${userId}`, { method: 'DELETE' });
+      const res = await fetch(`/api/users?userId=${userId}`, { method: 'DELETE' });
       const data = await res.json();
       if (data.success) {
         toast.success('User deleted successfully');
@@ -218,6 +224,34 @@ export function AdminUsersPage() {
       }
     } catch {
       toast.error('Failed to delete user');
+    }
+  };
+
+  const handleUpdateUserPassword = async () => {
+    if (!selectedUserForPassword || !newSingleUserPassword || newSingleUserPassword.length < 6) {
+        toast.error('Password must be at least 6 characters');
+        return;
+    }
+    setUpdatingPassword(true);
+    try {
+      const res = await fetch('/api/users', { 
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: selectedUserForPassword.id, password: newSingleUserPassword })
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success(`Password updated for ${selectedUserForPassword.name}`);
+        setShowPasswordDialog(false);
+        setNewSingleUserPassword('');
+        setSelectedUserForPassword(null);
+      } else {
+        toast.error(data.message || 'Update failed');
+      }
+    } catch {
+      toast.error('Failed to update password');
+    } finally {
+      setUpdatingPassword(false);
     }
   };
 
@@ -303,15 +337,25 @@ export function AdminUsersPage() {
                       </td>
                       <td className="py-3 px-4 text-sm text-muted-foreground">{user.email || '-'}</td>
                       <td className="py-3 px-4 text-right">
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          onClick={() => handleDeleteUser(user.id)}
-                          disabled={user.role === 'admin'}
-                          className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
+                        <div className="flex justify-end gap-1">
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            onClick={() => { setSelectedUserForPassword(user); setShowPasswordDialog(true); }}
+                            className="h-8 w-8 text-blue-500 hover:text-blue-700 hover:bg-blue-50"
+                          >
+                            <Key className="w-4 h-4" />
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            onClick={() => handleDeleteUser(user.id)}
+                            disabled={user.role === 'admin'}
+                            className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -345,6 +389,44 @@ export function AdminUsersPage() {
           </Button>
         </div>
       )}
+
+      <Dialog open={showPasswordDialog} onOpenChange={setShowPasswordDialog}>
+         <DialogContent className="rounded-2xl">
+            <DialogHeader>
+              <DialogTitle>Reset Account Password</DialogTitle>
+              <DialogDescription>
+                Changing password for <span className="font-bold text-slate-900">{selectedUserForPassword?.name}</span> ({selectedUserForPassword?.collegeId})
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-4 space-y-4">
+              <div className="space-y-2">
+                <Label>New Secure Password</Label>
+                <div className="relative">
+                  <Key className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input 
+                    type="password"
+                    placeholder="Enter new password..."
+                    value={newSingleUserPassword}
+                    onChange={(e) => setNewSingleUserPassword(e.target.value)}
+                    className="pl-10 h-11 rounded-xl"
+                  />
+                </div>
+                <p className="text-[10px] text-muted-foreground">Minimum 6 characters required.</p>
+              </div>
+            </div>
+            <DialogFooter className="gap-2">
+               <Button variant="outline" onClick={() => setShowPasswordDialog(false)} className="flex-1 rounded-xl">Cancel</Button>
+               <Button 
+                onClick={handleUpdateUserPassword} 
+                disabled={updatingPassword || newSingleUserPassword.length < 6}
+                className="flex-1 rounded-xl bg-blue-600 hover:bg-blue-700"
+               >
+                {updatingPassword ? <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+                Update Password
+               </Button>
+            </DialogFooter>
+         </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -361,13 +443,14 @@ export function AdminImportPage() {
   const [importMode, setImportMode] = useState<'append' | 'replace'>('append');
   
   const [stats, setStats] = useState({ total: 0, students: 0, faculty: 0 });
-  const [timetableSummaries, setTimetableSummaries] = useState<{ section: string; count: number }[]>([]);
+  const [timetableSummaries, setTimetableSummaries] = useState<{ section: string; count?: number; semester?: number }[]>([]);
 
   const [resetPassword, setResetPassword] = useState('');
   const [resetRole, setResetRole] = useState<'students' | 'faculty' | 'all'>('students');
   const [showResetDialog, setShowResetDialog] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [initializingAcademic, setInitializingAcademic] = useState(false);
+  const [selectedSemester, setSelectedSemester] = useState<string>("4");
 
   const studentCsvRef = useRef<HTMLInputElement>(null);
   const facultyCsvRef = useRef<HTMLInputElement>(null);
@@ -485,6 +568,7 @@ export function AdminImportPage() {
     const formData = new FormData();
     formData.append('file', e.target.files[0]);
     formData.append('mode', importMode);
+    formData.append('semester', selectedSemester);
 
     try {
       const res = await fetch('/api/timetable/import', { method: 'POST', body: formData });
@@ -583,6 +667,7 @@ export function AdminImportPage() {
             size="sm" 
             variant={importMode === 'append' ? 'default' : 'ghost'} 
             onClick={() => setImportMode('append')} 
+            disabled={importing}
             className="rounded-xl h-9 px-4 text-xs font-semibold transition-all"
            >
             Append
@@ -591,6 +676,7 @@ export function AdminImportPage() {
             size="sm" 
             variant={importMode === 'replace' ? 'default' : 'ghost'} 
             onClick={() => setImportMode('replace')} 
+            disabled={importing}
             className="rounded-xl h-9 px-4 text-xs font-semibold transition-all"
            >
             Replace
@@ -600,11 +686,11 @@ export function AdminImportPage() {
 
       <Tabs defaultValue="students" className="w-full">
         <TabsList className="flex w-full overflow-x-auto h-12 bg-slate-100/50 dark:bg-slate-900/50 p-1 rounded-2xl border border-slate-200/50 dark:border-slate-700/50 scrollbar-hide">
-          <TabsTrigger value="students" className="flex-1 rounded-xl text-xs font-semibold data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 data-[state=active]:shadow-sm">Students</TabsTrigger>
-          <TabsTrigger value="academic" className="flex-1 rounded-xl text-xs font-semibold data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 data-[state=active]:shadow-sm">Marks</TabsTrigger>
-          <TabsTrigger value="attendance" className="flex-1 rounded-xl text-xs font-semibold data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 data-[state=active]:shadow-sm">Attendance</TabsTrigger>
-          <TabsTrigger value="faculty" className="flex-1 rounded-xl text-xs font-semibold data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 data-[state=active]:shadow-sm">Faculty</TabsTrigger>
-          <TabsTrigger value="timetable" className="flex-1 rounded-xl text-xs font-semibold data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 data-[state=active]:shadow-sm">Timetable</TabsTrigger>
+          <TabsTrigger value="students" disabled={importing} className="flex-1 rounded-xl text-xs font-semibold data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 data-[state=active]:shadow-sm">Students</TabsTrigger>
+          <TabsTrigger value="academic" disabled={importing} className="flex-1 rounded-xl text-xs font-semibold data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 data-[state=active]:shadow-sm">Marks</TabsTrigger>
+          <TabsTrigger value="attendance" disabled={importing} className="flex-1 rounded-xl text-xs font-semibold data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 data-[state=active]:shadow-sm">Attendance</TabsTrigger>
+          <TabsTrigger value="faculty" disabled={importing} className="flex-1 rounded-xl text-xs font-semibold data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 data-[state=active]:shadow-sm">Faculty</TabsTrigger>
+          <TabsTrigger value="timetable" disabled={importing} className="flex-1 rounded-xl text-xs font-semibold data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 data-[state=active]:shadow-sm">Timetable</TabsTrigger>
         </TabsList>
 
         <div className="mt-6">
@@ -698,8 +784,8 @@ export function AdminImportPage() {
                     <Download className="w-5 h-5 mr-2 text-muted-foreground" /> Download Template
                   </Button>
                   <input ref={cgpaCsvRef} type="file" accept=".csv" className="hidden" onChange={handleCgpaImport} />
-                  <Button size="lg" onClick={() => cgpaCsvRef.current?.click()} className="rounded-2xl h-14 bg-orange-600 hover:bg-orange-700 text-white shadow-md shadow-orange-100 dark:shadow-none font-semibold">
-                    <Upload className="w-5 h-5 mr-2" /> Upload CSV
+                  <Button size="lg" onClick={() => cgpaCsvRef.current?.click()} disabled={importing} className="rounded-2xl h-14 bg-orange-600 hover:bg-orange-700 text-white shadow-md shadow-orange-100 dark:shadow-none font-semibold">
+                    {importing ? <RefreshCw className="w-5 h-5 mr-2 animate-spin" /> : <Upload className="w-5 h-5 mr-2" />} Upload CSV
                   </Button>
                 </div>
               </CardContent>
@@ -743,8 +829,8 @@ export function AdminImportPage() {
                     <Download className="w-5 h-5 mr-2 text-muted-foreground" /> Download Template
                   </Button>
                   <input ref={attendanceCsvRef} type="file" accept=".csv" className="hidden" onChange={handleAttendanceImport} />
-                  <Button size="lg" onClick={() => attendanceCsvRef.current?.click()} className="rounded-2xl h-14 bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-100 dark:shadow-none font-semibold">
-                    <Upload className="w-5 h-5 mr-2" /> Upload CSV
+                  <Button size="lg" onClick={() => attendanceCsvRef.current?.click()} disabled={importing} className="rounded-2xl h-14 bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-100 dark:shadow-none font-semibold">
+                    {importing ? <RefreshCw className="w-5 h-5 mr-2 animate-spin" /> : <Upload className="w-5 h-5 mr-2" />} Upload CSV
                   </Button>
                 </div>
               </CardContent>
@@ -767,8 +853,8 @@ export function AdminImportPage() {
                       <Download className="w-5 h-5 mr-2 text-muted-foreground" /> Download Template
                     </Button>
                     <input ref={facultyCsvRef} type="file" accept=".csv" className="hidden" onChange={() => handleCsvImport('faculty')} />
-                    <Button size="lg" onClick={() => facultyCsvRef.current?.click()} className="rounded-2xl h-14 bg-purple-600 hover:bg-purple-700 text-white shadow-md shadow-purple-100 dark:shadow-none font-semibold">
-                      <Upload className="w-5 h-5 mr-2" /> Upload CSV
+                    <Button size="lg" onClick={() => facultyCsvRef.current?.click()} disabled={importing} className="rounded-2xl h-14 bg-purple-600 hover:bg-purple-700 text-white shadow-md shadow-purple-100 dark:shadow-none font-semibold">
+                      {importing ? <RefreshCw className="w-5 h-5 mr-2 animate-spin" /> : <Upload className="w-5 h-5 mr-2" />} Upload CSV
                     </Button>
                   </div>
                </CardContent>
@@ -822,9 +908,22 @@ export function AdminImportPage() {
                  </CardTitle>
                </CardHeader>
                <CardContent className="p-6">
+                  <div className="mb-4">
+                    <Label className="text-xs font-bold text-muted-foreground uppercase mb-2 block">Target Semester</Label>
+                    <Select value={selectedSemester} onValueChange={setSelectedSemester}>
+                      <SelectTrigger className="w-full h-12 rounded-xl">
+                        <SelectValue placeholder="Select Semester" />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-xl">
+                        {[1, 2, 3, 4, 5, 6, 7, 8].map(sem => (
+                          <SelectItem key={sem} value={sem.toString()}>Semester {sem}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                   <input ref={timetableRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleTimetableImport} />
-                  <Button size="lg" onClick={() => timetableRef.current?.click()} className="w-full rounded-2xl h-16 bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-100 dark:shadow-none font-bold text-lg">
-                    <Upload className="w-6 h-6 mr-3" /> Select Excel File
+                  <Button size="lg" onClick={() => timetableRef.current?.click()} disabled={importing} className="w-full rounded-2xl h-16 bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-100 dark:shadow-none font-bold text-lg">
+                    {importing ? <RefreshCw className="w-6 h-6 mr-3 animate-spin" /> : <Upload className="w-6 h-6 mr-3" />} Select Excel File
                   </Button>
                </CardContent>
              </Card>
@@ -839,10 +938,17 @@ export function AdminImportPage() {
 
                 {timetableSummaries.length > 0 ? (
                   <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
-                    {timetableSummaries.map(s => (
-                      <div key={s.section} className="p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-between shadow-sm hover:border-indigo-500 transition-colors group">
-                          <span className="font-bold text-sm">Sec {s.section}</span>
-                          <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-sm animate-pulse group-hover:scale-125 transition-transform" />
+                    {timetableSummaries.map((s, idx) => (
+                      <div key={`${s.section}-${s.semester || idx}`} className="p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-col justify-center shadow-sm hover:border-indigo-500 transition-colors group">
+                          <div className="flex items-center justify-between w-full">
+                            <span className="font-bold text-sm">Sec {s.section}</span>
+                            <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-sm animate-pulse group-hover:scale-125 transition-transform" />
+                          </div>
+                          {s.semester ? (
+                            <span className="text-xs text-muted-foreground mt-1 font-medium">
+                              Year {Math.ceil(s.semester / 2)} • Sem {s.semester}
+                            </span>
+                          ) : null}
                       </div>
                     ))}
                   </div>

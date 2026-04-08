@@ -33,14 +33,24 @@ export function TimetablePage() {
 
   const days = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
   const timeSlots = [
-    { time: '7:30-8:30', dbStart: '07:30' },
-    { time: '8:40-9:40', dbStart: '08:40' },
-    { time: '9:50-10:50', dbStart: '09:50' },
-    { time: '11:00-12:00', dbStart: '11:00' },
-    { time: 'LUNCH', isLunch: true },
-    { time: '1:00-2:00', dbStart: '13:00' },
-    { time: '2:00-3:00', dbStart: '14:00' }
+    { time: '7:30-8:30', dbStart: '07:30', dbEnd: '08:30', index: 0 },
+    { time: '8:40-9:40', dbStart: '08:40', dbEnd: '09:40', index: 1 },
+    { time: '9:50-10:50', dbStart: '09:50', dbEnd: '10:50', index: 2 },
+    { time: '11:00-12:00', dbStart: '11:00', dbEnd: '12:00', index: 3 },
+    { time: 'LUNCH', isLunch: true, dbStart: '', dbEnd: '', index: 4 },
+    { time: '1:00-2:00', dbStart: '13:00', dbEnd: '14:00', index: 5 },
+    { time: '2:00-3:00', dbStart: '14:00', dbEnd: '15:00', index: 6 }
   ];
+
+  // Map from dbStart to the next slot's dbEnd for 2-hour span
+  const nextSlotEnd: Record<string, string> = {
+    '07:30': '09:40',
+    '08:40': '10:50',
+    '09:50': '12:00',
+    '11:00': '12:00', // before lunch, no span
+    '13:00': '15:00',
+    '14:00': '15:00', // last slot, no span
+  };
 
   const allSections = [...new Set(dbTimetable.map(e => e.section).filter(Boolean))].sort() as string[];
   const dynamicBranches = [...new Set(allSections.map(s => s.split('-')[0]))].sort();
@@ -58,12 +68,78 @@ export function TimetablePage() {
     return entry ? entry.subject : '';
   };
 
+  // Check if a subject at a slot is a 2-hour block (LAB or AR CLASS)
+  // It spans 2 hours if it's a lab/AR CLASS and the next slot has no entry
+  const isDoubleSlot = (day: string, section: string, slotIndex: number, subject: string): boolean => {
+    if (!subject) return false;
+    const isLabOrArClass = subject.includes('LAB') || subject.includes('AR CLASS') || subject === 'PROJECT';
+    if (!isLabOrArClass) return false;
+
+    // Check the next time slot (skip lunch boundary)
+    const nextIndex = slotIndex + 1;
+    if (nextIndex >= timeSlots.length) return false;
+    const nextSlot = timeSlots[nextIndex];
+    if (nextSlot.isLunch) return false; // Don't span across lunch
+
+    const nextSubject = getSubjectForSlot(day, section, nextSlot);
+    return !nextSubject; // Span if next slot is empty
+  };
+
   const getSubjectColor = (subject: string) => {
     if (!subject) return 'bg-gray-50 dark:bg-gray-800/50';
     if (subject.includes('LAB')) return 'bg-purple-100 dark:bg-purple-900/30 border-purple-300 dark:border-purple-700';
     if (subject.includes('AR CLASS')) return 'bg-orange-100 dark:bg-orange-900/30 border-orange-300 dark:border-orange-700';
     if (subject === 'LUNCH') return 'bg-gray-200 dark:bg-gray-700';
     return 'bg-blue-100 dark:bg-blue-900/30 border-blue-300 dark:border-blue-700';
+  };
+
+  // Build row cells with colspan support
+  const buildRowCells = (day: string) => {
+    const cells: React.ReactNode[] = [];
+    let skipNext = false;
+
+    for (let slotIndex = 0; slotIndex < timeSlots.length; slotIndex++) {
+      if (skipNext) {
+        skipNext = false;
+        continue; // This slot is consumed by the previous colspan=2
+      }
+
+      const slot = timeSlots[slotIndex];
+      const subject = getSubjectForSlot(day, activeSection, slot);
+      const isDouble = !slot.isLunch && isDoubleSlot(day, activeSection, slotIndex, subject);
+
+      if (isDouble) {
+        skipNext = true;
+        const nextSlot = timeSlots[slotIndex + 1];
+        cells.push(
+          <td key={slotIndex} colSpan={2} className="p-1 border-r">
+            <div className={`p-2 rounded-lg border text-center text-xs font-semibold ${getSubjectColor(subject)}`}>
+              {subject}
+              <div className="text-[10px] font-normal mt-0.5 opacity-70">
+                {slot.time.split('-')[0]} - {nextSlot.time.split('-')[1]}
+              </div>
+            </div>
+          </td>
+        );
+      } else if (slot.isLunch) {
+        cells.push(
+          <td key={slotIndex} className="p-1 border-r bg-gray-200 dark:bg-gray-700">
+            <div className="text-center text-xs font-semibold text-gray-500">LUNCH</div>
+          </td>
+        );
+      } else {
+        cells.push(
+          <td key={slotIndex} className={`p-1 border-r`}>
+            {subject ? (
+              <div className={`p-2 rounded-lg border text-center text-xs font-semibold ${getSubjectColor(subject)}`}>
+                {subject}
+              </div>
+            ) : <div className="text-center text-xs text-gray-300">-</div>}
+          </td>
+        );
+      }
+    }
+    return cells;
   };
 
   return (
@@ -119,18 +195,7 @@ export function TimetablePage() {
               {days.map((day, dayIndex) => (
                 <tr key={day} className={dayIndex % 2 === 0 ? 'bg-white dark:bg-gray-900' : 'bg-gray-50 dark:bg-gray-800/50'}>
                   <td className="p-2 text-xs font-bold border-r bg-gray-100 dark:bg-gray-800">{day}</td>
-                  {timeSlots.map((slot, slotIndex) => {
-                    const subject = getSubjectForSlot(day, activeSection, slot);
-                    return (
-                      <td key={slotIndex} className={`p-1 border-r ${slot.isLunch ? 'bg-gray-200 dark:bg-gray-700' : ''}`}>
-                        {subject ? (
-                          <div className={`p-2 rounded-lg border text-center text-xs font-semibold ${getSubjectColor(subject)}`}>
-                            {subject}
-                          </div>
-                        ) : <div className="text-center text-xs text-gray-300">-</div>}
-                      </td>
-                    );
-                  })}
+                  {buildRowCells(day)}
                 </tr>
               ))}
             </tbody>
