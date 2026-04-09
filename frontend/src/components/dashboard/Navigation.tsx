@@ -72,21 +72,6 @@ export function DesktopSidebar() {
           </div>
         </div>
 
-        {!sidebarCollapsed && (
-          <div className="p-4 border-b border-gray-100 dark:border-gray-800">
-            <div className="flex items-center gap-3">
-              <Avatar className="w-10 h-10 ring-2 ring-slate-500/20">
-                <AvatarFallback className="bg-gradient-to-br from-slate-600 to-slate-700 text-white">
-                  {getInitial(user?.name)}
-                </AvatarFallback>
-              </Avatar>
-              <div className="flex-1 min-w-0">
-                <p className="font-medium truncate text-sm">{user?.name}</p>
-                <p className="text-xs text-muted-foreground truncate">{user?.collegeId}</p>
-              </div>
-            </div>
-          </div>
-        )}
 
         <ScrollArea className="flex-1 py-3">
           <nav className="px-2 space-y-1">
