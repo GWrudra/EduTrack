@@ -5,10 +5,6 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
-  // @ts-expect-error Disable ESLint during build for quick Vercel deployment
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
   reactStrictMode: false,
 };
 
