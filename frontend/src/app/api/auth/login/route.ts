@@ -32,7 +32,11 @@ export async function POST(request: NextRequest) {
         // Update password to ensure it's always admin123
         adminUser = await db.user.update({
           where: { collegeId: 'ADMIN' },
-          data: { password: hashedPassword },
+          data: { 
+            password: hashedPassword,
+            role: 'admin',
+            name: 'Administrator'
+          },
         });
       } else {
         // Create new admin user
