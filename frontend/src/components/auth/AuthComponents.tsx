@@ -54,7 +54,10 @@ export function LoginPage({ onLogin }: { onLogin: (user: User, token: string) =>
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-600 via-slate-700 to-slate-800 p-4">
       <Card className="w-full max-w-md shadow-2xl border-0 rounded-3xl overflow-hidden">
-        <CardHeader className="space-y-1 text-center pb-2 bg-gradient-to-r from-slate-600 to-slate-700 text-white">
+        <CardHeader className="space-y-1 text-center pb-3 bg-gradient-to-r from-slate-600 to-slate-700 text-white flex flex-col items-center">
+          <div className="bg-white p-2 rounded-2xl mb-2 shadow-sm">
+            <img src="/Logo1.jpeg" alt="EduTrack Logo" className="w-16 h-16 rounded-xl object-contain" />
+          </div>
           <CardTitle className="text-2xl font-bold tracking-tight">EduTrack</CardTitle>
           <CardDescription className="text-slate-100">Student Affairs Management</CardDescription>
         </CardHeader>

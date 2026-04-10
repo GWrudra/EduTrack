@@ -31,8 +31,8 @@ export const metadata: Metadata = {
     telephone: false,
   },
   icons: {
-    icon: "/logo.svg",
-    apple: "/icon-192.png",
+    icon: "/Logo1.jpeg",
+    apple: "/cache-192.jpeg",
   },
   openGraph: {
     title: "EduTrack - Student Affairs Management",

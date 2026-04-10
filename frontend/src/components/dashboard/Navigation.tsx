@@ -64,9 +64,12 @@ export function DesktopSidebar() {
         <div className="p-4 border-b border-gray-100 dark:border-gray-800">
           <div className={`flex items-center ${sidebarCollapsed ? 'justify-center' : 'gap-3'}`}>
             {!sidebarCollapsed && (
-              <div>
-                <h1 className="font-bold text-lg">EduTrack</h1>
-                <p className="text-xs text-muted-foreground">Student Affairs</p>
+              <div className="flex items-center gap-3">
+                <img src="/Logo1.jpeg" alt="EduTrack" className="w-10 h-10 rounded-xl object-contain bg-white shadow-sm" />
+                <div>
+                  <h1 className="font-bold text-lg leading-tight">EduTrack</h1>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-widest mt-0.5">Student Affairs</p>
+                </div>
               </div>
             )}
           </div>
@@ -189,9 +192,12 @@ export function MobileHeader({ onOpenNotifications, unreadCount }: { onOpenNotif
     <>
       <header className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm border-b border-gray-100 dark:border-gray-800">
         <div className="flex items-center justify-between px-4 py-3">
-          <div>
-            <h1 className="font-bold text-sm">EduTrack</h1>
-            <p className="text-[10px] text-muted-foreground">{user?.name}</p>
+          <div className="flex items-center gap-2">
+            <img src="/Logo1.jpeg" alt="EduTrack" className="w-8 h-8 rounded-lg object-contain bg-white shadow-sm" />
+            <div>
+              <h1 className="font-bold text-sm leading-tight">EduTrack</h1>
+              <p className="text-[9px] text-muted-foreground uppercase tracking-wider mt-0.5">{user?.name}</p>
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="icon" onClick={onOpenNotifications} className="rounded-full h-9 w-9 relative">

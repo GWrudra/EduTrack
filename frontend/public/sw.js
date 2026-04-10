@@ -3,9 +3,9 @@ const CACHE_NAME = 'edutrack-cache-v1';
 const ASSETS_TO_CACHE = [
   '/',
   '/manifest.json',
-  '/icon-192.png',
-  '/icon-512.png',
-  '/logo.svg'
+  '/cache-192.jpeg',
+  '/cache-512.jpeg',
+  '/Logo1.jpeg'
 ];
 
 self.addEventListener('install', (event) => {
