@@ -166,8 +166,8 @@ model AssignmentSubmission {
   score        Float?
   feedback     String?
   status       String     @default("submitted")
-  student      User       @relation(fields: [studentId], references: [id], onDelete: Cascade)
   assignment   Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  student      User       @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
   @@unique([assignmentId, studentId])
 }

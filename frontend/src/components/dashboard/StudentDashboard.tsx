@@ -126,15 +126,27 @@ export function StudentDashboard() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm text-muted-foreground">{getGreeting()}</p>
-          <h1 className="text-2xl font-bold tracking-tight">{user?.name || 'Student'}</h1>
-        </div>
-        <div className="text-right">
-          <div className="text-3xl font-bold text-slate-700 dark:text-slate-200">{new Date().getDate()}</div>
-          <div className="text-xs text-muted-foreground uppercase">{new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}</div>
-          <div className="text-xs text-muted-foreground">{new Date().toLocaleDateString('en-US', { weekday: 'long' })}</div>
+      <div className="bg-gradient-to-r from-slate-800 to-slate-900 rounded-2xl p-6 text-white shadow-xl relative overflow-hidden">
+        <div className="absolute top-0 right-0 -mt-4 -mr-4 w-32 h-32 bg-white/5 rounded-full blur-2xl"></div>
+        <div className="absolute bottom-0 right-20 w-24 h-24 bg-blue-500/10 rounded-full blur-xl"></div>
+        
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between relative z-10 w-full gap-4">
+          <div className="flex-1">
+            <p className="text-[10px] text-slate-400 uppercase tracking-widest font-semibold mb-1">{getGreeting()}</p>
+            <h1 className="text-2xl sm:text-3xl font-bold mb-2 break-words">{user?.name || 'Student'}</h1>
+            <Badge variant="outline" className="bg-white/10 hover:bg-white/20 border-white/20 text-slate-100 backdrop-blur-md">
+              {user?.branch || 'Department'} - {user?.section || 'Section'}
+            </Badge>
+          </div>
+          <div className="mt-2 md:mt-0 text-right bg-white/5 rounded-xl p-3 sm:px-4 sm:py-3 backdrop-blur-sm border border-white/10 shrink-0 min-w-fit flex md:block items-center gap-3">
+            <div className="text-2xl sm:text-3xl font-bold text-white leading-none">{new Date().getDate()}</div>
+            <div className="text-[10px] sm:text-xs text-slate-300 uppercase tracking-widest font-medium mt-0 md:mt-1">
+              {new Date().toLocaleDateString('en-US', {month:'short', year:'numeric'})}
+            </div>
+            <div className="hidden md:block text-[10px] text-slate-400 mt-1">
+              {new Date().toLocaleDateString('en-US', { weekday: 'long' })}
+            </div>
+          </div>
         </div>
       </div>
 

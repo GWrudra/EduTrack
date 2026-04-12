@@ -78,15 +78,28 @@ export function AdminDashboard() {
   }, []);
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-bold">Admin Dashboard</h2>
-          <p className="text-sm text-muted-foreground">System overview and management</p>
-        </div>
-        <div className="text-right">
-          <div className="text-3xl font-bold text-red-600">{new Date().getDate()}</div>
-          <div className="text-xs text-muted-foreground uppercase">{new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}</div>
+    <div className="space-y-5">
+      <div className="bg-gradient-to-r from-slate-800 to-slate-900 rounded-2xl p-6 text-white shadow-xl relative overflow-hidden">
+        <div className="absolute top-0 right-0 -mt-4 -mr-4 w-32 h-32 bg-white/5 rounded-full blur-2xl"></div>
+        <div className="absolute bottom-0 right-20 w-24 h-24 bg-red-500/10 rounded-full blur-xl"></div>
+        
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between relative z-10 w-full gap-4">
+          <div className="flex-1">
+            <p className="text-[10px] text-slate-400 uppercase tracking-widest font-semibold mb-1">System Administration</p>
+            <h1 className="text-2xl sm:text-3xl font-bold mb-2 break-words">Admin Dashboard</h1>
+            <Badge variant="outline" className="bg-white/10 hover:bg-white/20 border-white/20 text-slate-100 backdrop-blur-md">
+              System Overview
+            </Badge>
+          </div>
+          <div className="mt-2 md:mt-0 text-right bg-white/5 rounded-xl p-3 sm:px-4 sm:py-3 backdrop-blur-sm border border-white/10 shrink-0 min-w-fit flex md:block items-center gap-3">
+            <div className="text-2xl sm:text-3xl font-bold text-white leading-none">{new Date().getDate()}</div>
+            <div className="text-[10px] sm:text-xs text-slate-300 uppercase tracking-widest font-medium mt-0 md:mt-1">
+              {new Date().toLocaleDateString('en-US', {month:'short', year:'numeric'})}
+            </div>
+            <div className="hidden md:block text-[10px] text-slate-400 mt-1">
+              {new Date().toLocaleDateString('en-US', { weekday: 'long' })}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -552,11 +565,24 @@ export function AdminImportPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ data: csvText, mode: importMode }) 
         });
-        const result = await res.json();
+        
+        let result;
+        try {
+          result = await res.json();
+        } catch (jsonErr) {
+          toast.error("Failed to parse response from server.");
+          return;
+        }
+
+        if (!result.success && !result.results) {
+           toast.error(result.message || 'Failed to import attendance');
+           return;
+        }
+
         setImportResult(result.results || result);
         setShowResultDialog(true);
         if (result.success) triggerDataUpdate();
-      } catch (error) { toast.error('Failed to import attendance'); }
+      } catch (error) { toast.error('Failed to connect to the server'); }
       finally { setImporting(false); e.target.value = ''; }
     };
     reader.readAsText(file);
@@ -909,14 +935,14 @@ export function AdminImportPage() {
                </CardHeader>
                <CardContent className="p-6">
                   <div className="mb-4">
-                    <Label className="text-xs font-bold text-muted-foreground uppercase mb-2 block">Target Semester</Label>
+                    <Label className="text-xs font-bold text-muted-foreground uppercase mb-2 block">Target Year</Label>
                     <Select value={selectedSemester} onValueChange={setSelectedSemester}>
                       <SelectTrigger className="w-full h-12 rounded-xl">
-                        <SelectValue placeholder="Select Semester" />
+                        <SelectValue placeholder="Select Year" />
                       </SelectTrigger>
                       <SelectContent className="rounded-xl">
-                        {[1, 2, 3, 4, 5, 6, 7, 8].map(sem => (
-                          <SelectItem key={sem} value={sem.toString()}>Semester {sem}</SelectItem>
+                        {[1, 2, 3, 4].map(year => (
+                          <SelectItem key={year} value={year.toString()}>Year {year}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -974,9 +1000,9 @@ export function AdminImportPage() {
                      <div className="p-4 rounded-2xl bg-green-50 text-green-700"><p className="text-2xl font-bold">{importResult.success}</p><p>Success</p></div>
                      <div className="p-4 rounded-2xl bg-red-50 text-red-700"><p className="text-2xl font-bold">{importResult.failed}</p><p>Failed</p></div>
                   </div>
-                  {importResult.errors.length > 0 && (
+                  {importResult.details && importResult.details.length > 0 && (
                      <div className="max-h-40 overflow-y-auto p-2 bg-muted rounded-xl text-xs space-y-1">
-                        {importResult.errors.slice(0, 10).map((err: string, i: number) => <p key={i} className="text-red-600">{err}</p>)}
+                        {importResult.details.slice(0, 10).map((err: any, i: number) => <p key={i} className="text-red-600">{err.collegeid}: {err.error}</p>)}
                      </div>
                   )}
                </div>

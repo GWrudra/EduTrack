@@ -61,6 +61,7 @@ import { useAppStore } from '@/lib/store';
 import { getInitial, getRoleColor } from '@/lib/utils';
 import { DailyQuoteCard } from '@/components/features/FeaturesComponents';
 import { toast } from 'sonner';
+import { Doughnut, Bar } from 'react-chartjs-2';
 
 // ============ INTERFACES ============
 
@@ -261,7 +262,58 @@ export function FacultyDashboard() {
   useEffect(() => { fetchStudents(); }, [fetchStudents, dataUpdateCounter]);
 
   const highRiskStudents = students.filter(s => s.riskLevel === 'high');
-  const totalStudents = students.length;
+  const totalStudents = students.length || 1; // avoid division by zero
+  
+  const highRiskCount = highRiskStudents.length;
+  const mediumRiskCount = students.filter(s=>s.riskLevel==='medium').length;
+  const safeRiskCount = students.filter(s=>s.riskLevel==='low').length;
+
+  const doughnutData = {
+    labels: ['High Risk', 'Medium Risk', 'Safe'],
+    datasets: [
+      {
+        data: [highRiskCount, mediumRiskCount, safeRiskCount],
+        backgroundColor: ['#ef4444', '#f97316', '#10b981'],
+        borderWidth: 0,
+      },
+    ],
+  };
+
+  const doughnutOptions = {
+    cutout: '70%',
+    plugins: { legend: { display: false } },
+    maintainAspectRatio: false,
+  };
+
+  const attendanceBins = [0, 0, 0, 0];
+  students.forEach(s => {
+    if (s.attendance < 50) attendanceBins[0]++;
+    else if (s.attendance < 70) attendanceBins[1]++;
+    else if (s.attendance < 85) attendanceBins[2]++;
+    else attendanceBins[3]++;
+  });
+
+  const barData = {
+    labels: ['<50%', '50-70%', '70-85%', '>85%'],
+    datasets: [
+      {
+        label: 'Students',
+        data: attendanceBins,
+        backgroundColor: ['rgba(239, 68, 68, 0.8)', 'rgba(249, 115, 22, 0.8)', 'rgba(234, 179, 8, 0.8)', 'rgba(16, 185, 129, 0.8)'],
+        borderRadius: 6,
+      }
+    ]
+  };
+
+  const barOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      y: { beginAtZero: true, grid: { color: 'rgba(156, 163, 175, 0.1)' } },
+      x: { grid: { display: false } }
+    }
+  };
 
   const handleQuickWarning = async () => {
     if (!warningData.studentId || !warningData.message) return;
@@ -311,34 +363,63 @@ export function FacultyDashboard() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-           <p className="text-xs text-muted-foreground uppercase tracking-wider">Academic Overview</p>
-           <h1 className="text-2xl font-bold">{user?.name || 'Faculty'}</h1>
-           <Badge variant="secondary" className="mt-1">{user?.department}</Badge>
-        </div>
-        <div className="text-right">
-           <div className="text-2xl font-bold">{new Date().getDate()}</div>
-           <div className="text-xs text-muted-foreground uppercase">{new Date().toLocaleDateString('en-US', {month:'short', year:'numeric'})}</div>
+      <div className="bg-gradient-to-r from-slate-800 to-slate-900 rounded-2xl p-6 text-white shadow-xl relative overflow-hidden">
+        <div className="absolute top-0 right-0 -mt-4 -mr-4 w-32 h-32 bg-white/5 rounded-full blur-2xl"></div>
+        <div className="absolute bottom-0 right-20 w-24 h-24 bg-blue-500/10 rounded-full blur-xl"></div>
+        
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between relative z-10 w-full gap-4">
+          <div className="flex-1">
+            <p className="text-[10px] text-slate-400 uppercase tracking-widest font-semibold mb-1">Academic Overview</p>
+            <h1 className="text-2xl sm:text-3xl font-bold mb-2 break-words">Welcome back, {user?.name || 'Faculty'}</h1>
+            <Badge variant="outline" className="bg-white/10 hover:bg-white/20 border-white/20 text-slate-100 backdrop-blur-md">
+              {user?.department || 'Department'}
+            </Badge>
+          </div>
+          <div className="mt-2 md:mt-0 text-right bg-white/5 rounded-xl p-3 sm:px-4 sm:py-3 backdrop-blur-sm border border-white/10 shrink-0 min-w-fit flex md:block items-center gap-3">
+            <div className="text-2xl sm:text-3xl font-bold text-white leading-none">{new Date().getDate()}</div>
+            <div className="text-[10px] sm:text-xs text-slate-300 uppercase tracking-widest font-medium mt-0 md:mt-1">
+              {new Date().toLocaleDateString('en-US', {month:'short', year:'numeric'})}
+            </div>
+          </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
-         <Card className="p-4 bg-red-50 dark:bg-red-950/20 border-red-100">
-            <div className="flex justify-between items-center mb-1"><span className="text-xs font-bold text-red-600">High Risk</span><AlertTriangle className="w-4 h-4 text-red-500"/></div>
-            <div className="text-2xl font-bold text-red-700">{students.filter(s=>s.riskLevel==='high').length}</div>
-            <Progress value={(students.filter(s=>s.riskLevel==='high').length/totalStudents)*100} className="h-1 bg-red-100 mt-2" />
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+         <Card className="p-4 bg-red-50 dark:bg-red-950/20 border-red-100 dark:border-red-900/50 hover:shadow-md transition-all">
+            <div className="flex justify-between items-center mb-1"><span className="text-xs font-bold text-red-600 dark:text-red-400">High Risk</span><AlertTriangle className="w-4 h-4 text-red-500"/></div>
+            <div className="text-2xl font-bold text-red-700 dark:text-red-500">{students.filter(s=>s.riskLevel==='high').length}</div>
+            <Progress value={(students.filter(s=>s.riskLevel==='high').length/totalStudents)*100} className="h-1 bg-red-100 dark:bg-red-950 mt-2 [&>div]:bg-red-500" />
          </Card>
-         <Card className="p-4 bg-orange-50 dark:bg-orange-950/20 border-orange-100">
-            <div className="flex justify-between items-center mb-1"><span className="text-xs font-bold text-orange-600">Medium Risk</span><AlertCircle className="w-4 h-4 text-orange-500"/></div>
-            <div className="text-2xl font-bold text-orange-700">{students.filter(s=>s.riskLevel==='medium').length}</div>
-            <Progress value={(students.filter(s=>s.riskLevel==='medium').length/totalStudents)*100} className="h-1 bg-orange-100 mt-2" />
+         <Card className="p-4 bg-orange-50 dark:bg-orange-950/20 border-orange-100 dark:border-orange-900/50 hover:shadow-md transition-all">
+            <div className="flex justify-between items-center mb-1"><span className="text-xs font-bold text-orange-600 dark:text-orange-400">Medium Risk</span><AlertCircle className="w-4 h-4 text-orange-500"/></div>
+            <div className="text-2xl font-bold text-orange-700 dark:text-orange-500">{students.filter(s=>s.riskLevel==='medium').length}</div>
+            <Progress value={(students.filter(s=>s.riskLevel==='medium').length/totalStudents)*100} className="h-1 bg-orange-100 dark:bg-orange-950 mt-2 [&>div]:bg-orange-500" />
          </Card>
-         <Card className="p-4 bg-emerald-50 dark:bg-emerald-950/20 border-emerald-100">
-            <div className="flex justify-between items-center mb-1"><span className="text-xs font-bold text-emerald-600">Safe</span><CheckCircle className="w-4 h-4 text-emerald-500"/></div>
-            <div className="text-2xl font-bold text-emerald-700">{students.filter(s=>s.riskLevel==='low').length}</div>
-            <Progress value={(students.filter(s=>s.riskLevel==='low').length/totalStudents)*100} className="h-1 bg-emerald-100 mt-2" />
+         <Card className="p-4 bg-emerald-50 dark:bg-emerald-950/20 border-emerald-100 dark:border-emerald-900/50 hover:shadow-md transition-all">
+            <div className="flex justify-between items-center mb-1"><span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">Safe</span><CheckCircle className="w-4 h-4 text-emerald-500"/></div>
+            <div className="text-2xl font-bold text-emerald-700 dark:text-emerald-500">{students.filter(s=>s.riskLevel==='low').length}</div>
+            <Progress value={(students.filter(s=>s.riskLevel==='low').length/totalStudents)*100} className="h-1 bg-emerald-100 dark:bg-emerald-950 mt-2 [&>div]:bg-emerald-500" />
          </Card>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card className="p-4 shadow-sm border-slate-200 dark:border-slate-800 rounded-2xl flex flex-col justify-between">
+           <h3 className="text-sm font-semibold mb-4 text-slate-700 dark:text-slate-300">Risk Distribution</h3>
+           <div className="h-48 w-full relative flex items-center justify-center">
+             <Doughnut data={doughnutData} options={doughnutOptions} />
+             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+               <span className="text-2xl font-bold">{totalStudents}</span>
+               <span className="text-[10px] text-muted-foreground uppercase">Total</span>
+             </div>
+           </div>
+        </Card>
+        
+        <Card className="p-4 shadow-sm border-slate-200 dark:border-slate-800 rounded-2xl flex flex-col justify-between">
+           <h3 className="text-sm font-semibold mb-4 text-slate-700 dark:text-slate-300">Attendance Distribution</h3>
+           <div className="h-48 w-full relative">
+             <Bar data={barData} options={barOptions} />
+           </div>
+        </Card>
       </div>
 
       <DailyQuoteCard />

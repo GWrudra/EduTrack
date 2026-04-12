@@ -137,30 +137,30 @@ export default function EduTrackApp() {
         />
 
         {/* Top Navigation Bar (Desktop Only) */}
-        <header className="hidden md:flex h-16 items-center justify-between px-8 border-b bg-white dark:bg-slate-900 sticky top-0 z-30">
+        <header className="hidden md:flex h-20 items-center justify-between px-8 border-b border-slate-200/50 dark:border-slate-800/50 bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl sticky top-0 z-30 transition-all">
           <div className="flex items-center gap-4">
-            <h2 className="text-xl font-semibold capitalize">{activeTab.replace('_', ' ')}</h2>
+            <h2 className="text-2xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-slate-800 to-slate-500 dark:from-white dark:to-slate-400 capitalize tracking-tight">{activeTab.replace('_', ' ')}</h2>
           </div>
-          <div className="flex items-center gap-4">
-            <div className="relative">
+          <div className="flex items-center gap-5">
+            <div className="relative border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900 shadow-sm">
               <button 
                 onClick={() => setIsNotificationsOpen(true)}
-                className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors relative"
+                className="p-2.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors relative group"
               >
-                <i className="lucide-bell w-5 h-5 text-slate-600 dark:text-slate-400"></i>
+                <i className="lucide-bell w-5 h-5 text-slate-500 dark:text-slate-400 group-hover:text-slate-800 dark:group-hover:text-slate-200 transition-colors"></i>
                 {unreadCount > 0 && (
-                  <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-white dark:border-slate-900"></span>
+                  <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white dark:border-slate-900 animate-pulse"></span>
                 )}
               </button>
             </div>
-            <div className="h-8 w-px bg-slate-200 dark:bg-slate-800 mx-2"></div>
-            <div className="flex items-center gap-3">
-              <div className="text-right">
-                <p className="text-sm font-medium">{user.name}</p>
-                <p className="text-[10px] text-muted-foreground uppercase">{user.role}</p>
-              </div>
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-slate-600 to-slate-700 flex items-center justify-center text-white font-bold">
+            <div className="h-8 w-px bg-slate-200 dark:bg-slate-800 mx-1"></div>
+            <div className="flex items-center gap-3 p-1.5 pr-4 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer border border-transparent hover:border-slate-200 dark:hover:border-slate-800">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-slate-700 to-slate-900 dark:from-slate-600 dark:to-slate-800 flex items-center justify-center text-white font-bold shadow-md shadow-slate-200 dark:shadow-none font-sans">
                 {user.name.charAt(0)}
+              </div>
+              <div className="text-left hidden lg:block">
+                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 leading-tight">{user.name}</p>
+                <p className="text-[10px] tracking-wider text-slate-500 dark:text-slate-400 uppercase font-bold">{user.role}</p>
               </div>
             </div>
           </div>

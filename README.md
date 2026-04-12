@@ -7,13 +7,14 @@ A comprehensive, full-stack student affairs management system built with **Next.
 ## ✨ Features
 
 ### 👨‍🎓 Student Portal
-- **Dashboard** — Real-time overview of CGPA, attendance percentage, and achievement points
+- **Dashboard** — Premium glassmorphic UI offering a real-time overview of CGPA, attendance percentage, and achievement points
 - **Attendance & CGPA Tracker** — Visual trend analysis with semester-wise breakdowns
 - **Points System** — Gamified achievements (Academic, Social, Bonus points)
 - **Interactive Timetable** — Daily/weekly class schedules with location details
 - **Messaging** — Receive warnings, alerts, and announcements from faculty
 
 ### 👩‍🏫 Faculty Portal
+- **Interactive Analytics** — Beautiful, interactive charts (Doughnut & Bar charts via Chart.js) mapping student risk distribution and attendance ratios
 - **Risk Analysis** — Predictive student risk assessment (High/Medium/Low) with point-based scoring
 - **Attendance Management** — Mobile-friendly interface with CSV bulk import and topic tracking
 - **Messaging Hub** — Send warnings to students or alerts to parents
@@ -21,8 +22,9 @@ A comprehensive, full-stack student affairs management system built with **Next.
 
 ### 🔑 Admin Portal
 - **User Management** — Full CRUD operations for students and faculty accounts
-- **Bulk Data Import** — Import student lists and timetables from CSV/XLSX files
+- **Bulk Data Import** — Import student lists and timetables (organized by Target Year) from CSV/XLSX files
 - **Data Cleanup** — Selective deletion of students, faculty, attendance, marks, or timetable data
+- **Security Enhancements** — Upgraded login workflows with password visibility toggles and bulk password resets
 - **Database Backup** — Export full system data in JSON/CSV formats
 - **Seed Data** — Generate sample academic data for demonstrations
 
