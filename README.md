@@ -1,105 +1,204 @@
-# EduTrack - Student Affairs Management System
+# EduTrack — Student Affairs Management System
 
-EduTrack is a comprehensive, modern student affairs management system built with Next.js 16, designed to streamline academic tracking, attendance management, and communication between students, faculty, and administrators.
+A comprehensive, full-stack student affairs management system built with **Next.js 16**, designed to streamline academic tracking, attendance management, and communication between students, faculty, and administrators.
 
-![EduTrack Logo](/public/logo.svg)
+---
 
-## 🚀 Key Features
+## ✨ Features
 
-### 👨‍🎓 For Students
-- **Personalized Dashboard**: Real-time overview of academic status, attendance, and achievements.
-- **Attendance & CGPA Tracker**: Visual trend analysis of CGPA history and detailed attendance breakdowns.
-- **Points System**: Gamified achievements tracking (Academic, Social, and Bonus points).
-- **Interactive Timetable**: Daily and weekly class schedules with location details.
-- **Direct Messaging**: Receive warnings, alerts, and general info from faculty directly.
+### 👨‍🎓 Student Portal
+- **Dashboard** — Premium glassmorphic UI offering a real-time overview of CGPA, attendance percentage, and achievement points
+- **Attendance & CGPA Tracker** — Visual trend analysis with semester-wise breakdowns
+- **Points System** — Gamified achievements (Academic, Social, Bonus points)
+- **Interactive Timetable** — Daily/weekly class schedules with location details
+- **Messaging** — Receive warnings, alerts, and announcements from faculty
 
-### 👩‍🏫 For Faculty
-- **Student Risk Analysis**: Predictive risk assessment (High/Medium/Low) based on attendance and performance.
-- **Class Attendance Management**: Fast, mobile-friendly interface for updating attendance.
-- **Direct Messaging/Alerting**: Send warnings to students or alerts to parents with one click.
-- **Course & Exam Overview**: Manage assignments, exams, and grading for allocated courses.
+### 👩‍🏫 Faculty Portal
+- **Interactive Analytics** — Beautiful, interactive charts (Doughnut & Bar charts via Chart.js) mapping student risk distribution and attendance ratios
+- **Risk Analysis** — Predictive student risk assessment (High/Medium/Low) with point-based scoring
+- **Attendance Management** — Mobile-friendly interface with CSV bulk import and topic tracking
+- **Messaging Hub** — Send warnings to students or alerts to parents
+- **Course Overview** — Manage assignments, exams, and grading
 
-### 🔑 For Administrators
-- **User Management**: Comprehensive control over student and faculty user accounts.
-- **Bulk Data Import**: Import student lists and timetables from CSV/XLSX.
-- **Database Backup**: Export full system data in JSON/CSV formats.
-- **System Settings**: Global configuration for semesters and academic years.
+### 🔑 Admin Portal
+- **User Management** — Full CRUD operations for students and faculty accounts
+- **Bulk Data Import** — Import student lists and timetables (organized by Target Year) from CSV/XLSX files
+- **Data Cleanup** — Selective deletion of students, faculty, attendance, marks, or timetable data
+- **Security Enhancements** — Upgraded login workflows with password visibility toggles and bulk password resets
+- **Database Backup** — Export full system data in JSON/CSV formats
+- **Seed Data** — Generate sample academic data for demonstrations
 
-## 💻 Technology Stack
+---
 
-- **Framework**: [Next.js 16](https://nextjs.org/) (Using App Router & Turbopack)
-- **Styling**: [Tailwind CSS](https://tailwindcss.com/) + [Shadcn UI](https://ui.shadcn.com/)
-- **Database**: [Prisma](https://www.prisma.io/) with SQLite
-- **State Management**: [Zustand](https://github.com/pmndrs/zustand) (with LocalStorage persistence)
-- **Charts**: [Chart.js](https://www.chartjs.org/) & [react-chartjs-2](https://react-chartjs-2.js.org/)
-- **Utility**: [Lucide React](https://lucide.dev/) (Icons), [Zod](https://zod.dev/) (Validation), [Sonner](https://sonner.emilkowal.ski/) (Toasts)
+## 🛠 Tech Stack
 
-## 🛠 Setup & Installation
+| Layer | Technology |
+|---|---|
+| **Framework** | [Next.js 16](https://nextjs.org/) (App Router, Standalone Output) |
+| **Styling** | [Tailwind CSS 4](https://tailwindcss.com/) + [Shadcn UI](https://ui.shadcn.com/) |
+| **Database** | [Prisma ORM](https://www.prisma.io/) + SQLite |
+| **State** | [Zustand](https://github.com/pmndrs/zustand) (LocalStorage persistence) |
+| **Charts** | [Chart.js](https://www.chartjs.org/) + [Recharts](https://recharts.org/) |
+| **Animations** | [Framer Motion](https://www.framer.com/motion/) |
+| **Auth** | JWT (bcryptjs) |
+| **Icons** | [Lucide React](https://lucide.dev/) |
 
-### Prerequisites
-- Node.js 18.x or higher
-- npm or yarn
-
-### Installation Steps
-
-1. **Clone the repository**:
-   ```bash
-   git clone [repository-url]
-   cd Final
-   ```
-
-2. **Install dependencies**:
-   ```bash
-   npm install
-   ```
-
-3. **Initialize Database**:
-   ```bash
-   npx prisma db push
-   ```
-
-4. **Seed Demo Data** (Optional/Recommended):
-   ```bash
-   # Run the server first
-   npm run dev
-   # In a new terminal, seed the academic data
-   curl -X POST http://localhost:3000/api/academic
-   ```
-
-5. **Start Development Server**:
-   ```bash
-   npm run dev
-   ```
-   Open [http://localhost:3000](http://localhost:3000) in your browser.
-
-## 📱 Mobile Access (PWA)
-
-To access the system on your mobile phone:
-1. Ensure your phone and computer are on the same Wi-Fi network.
-2. Find your computer's IP address (e.g., `172.x.x.x`).
-3. Visit `http://YOUR_IP:3000` on your phone's browser.
-4. **Important**: If the server doesn't respond on your phone, restart it with:
-   ```bash
-   npx next dev -H 0.0.0.0
-   ```
-5. Use "Add to Home Screen" in Chrome (Android) or Safari (iOS) for a full PWA experience.
-
-## 🔐 Demo Credentials
-
-| Role | Roll No / Faculty ID | Password |
-| :--- | :--- | :--- |
-| **Admin** | `ADMIN` | `admin123` |
-| **Student** | `CSE001` | `password123` |
-| **Faculty** | `T001` | `password123` |
+---
 
 ## 📁 Project Structure
 
-- `/src/app`: Next.js App Router (Layouts, Pages, API Routes)
-- `/src/components/ui`: Reusable UI components from Shadcn
-- `/src/lib`: Core utilities, Prisma client, and Zustand store
-- `/prisma`: Database schema and migrations
-- `/public`: Static assets (images, icons, manifest)
+```
+EduTrack/
+├── package.json              # Root — delegates to frontend/
+├── frontend/                 # Next.js application
+│   ├── src/
+│   │   ├── app/              # Pages, layouts, API routes
+│   │   │   └── api/          # REST API endpoints
+│   │   ├── components/       # UI + dashboard + feature components
+│   │   ├── hooks/            # Custom React hooks
+│   │   └── lib/              # Prisma client, Zustand store, utils
+│   ├── public/               # Static assets, PWA manifest, service worker
+│   ├── package.json
+│   ├── next.config.ts
+│   └── tailwind.config.ts
+├── backend/
+│   ├── prisma/
+│   │   ├── schema.prisma     # Database schema (15 models)
+│   │   └── seed.ts           # Database seeder
+│   ├── dev.db                # SQLite database file
+│   └── infra/
+│       └── Caddyfile         # Reverse proxy config (optional)
+└── resources/
+    ├── docs/                 # PRD, FEATURES documentation
+    ├── upload/               # Data import templates (CSV/XLSX)
+    └── download/             # Generated export files
+```
+
+---
+
+## 🚀 Getting Started
+
+### Prerequisites
+- **Node.js** 18.x or higher
+- **npm** (comes with Node.js)
+
+### Installation
+
+```bash
+# 1. Clone the repository
+git clone <repository-url>
+cd EduTrack
+
+# 2. Install all dependencies (root + frontend)
+npm run install-all
+
+# 3. Set up environment variables
+cd frontend
+cp .env.example .env   # Then edit .env with your settings
+cd ..
+
+# 4. Initialize the database
+npm run db:push
+
+# 5. Start the development server
+npm run dev
+```
+
+Open **http://localhost:3000** in your browser.
+
+### Environment Variables
+
+Create `frontend/.env` with:
+
+```env
+DATABASE_URL="file:../backend/dev.db"
+JWT_SECRET="your-secret-key-here"
+NODE_ENV="development"
+```
+
+> ⚠️ **Change `JWT_SECRET`** to a strong random string in production.
+
+---
+
+## 📱 Mobile Access (PWA)
+
+1. Ensure your phone and computer are on the **same Wi-Fi network**
+2. Find your computer's local IP address (e.g., `192.168.x.x`)
+3. Visit `http://YOUR_IP:3000` on your phone's browser
+4. Use **"Add to Home Screen"** for a native app-like experience
+
+---
+
+## 🔐 Default Credentials
+
+| Role | ID | Password |
+|---|---|---|
+| **Admin** | `ADMIN` | `admin123` |
+| **Student** | *(imported via CSV)* | `password123` |
+| **Faculty** | *(imported via CSV)* | `password123` |
+
+> Change default passwords after first login.
+
+---
+
+## 🏗 Production Build
+
+```bash
+# Build for production (standalone output)
+npm run build
+
+# Start the production server
+npm run start
+```
+
+The `standalone` output mode bundles everything needed to run the app without `node_modules`, making it ideal for Docker or VPS deployment.
+
+---
+
+## 📊 Database Schema
+
+The system uses **15 Prisma models**:
+
+| Model | Purpose |
+|---|---|
+| `User` | Students, faculty, and admin accounts |
+| `AttendanceLog` | Daily attendance records with topic tracking |
+| `SemesterAttendance` | Aggregated subject-wise attendance per semester |
+| `SemesterRecord` | SGPA/CGPA records per semester |
+| `SubjectMark` | Individual subject marks and grades |
+| `Course` | Course catalog with schedules |
+| `CourseEnrollment` | Student-course mappings |
+| `Assignment` | Homework and project assignments |
+| `AssignmentSubmission` | Student submissions with scores |
+| `Exam` | Exam schedules and details |
+| `Mark` | Course-level marks |
+| `Message` | Internal messaging system |
+| `Notification` | System notifications |
+| `RiskAssessment` | Pre-calculated student risk scores |
+| `TimetableEntry` | Class schedule entries |
+| `DailyQuote` | Inspirational quotes for students |
+| `PointsLedger` | Gamification points tracking |
+
+---
+
+## 🔧 API Endpoints
+
+| Endpoint | Methods | Purpose |
+|---|---|---|
+| `/api/auth` | POST | Login / authentication |
+| `/api/users` | GET, POST, PUT, DELETE | User management |
+| `/api/users-cleanup` | DELETE | Bulk data cleanup |
+| `/api/attendance` | GET, POST | Attendance management |
+| `/api/attendance-dashboard` | GET | Attendance analytics |
+| `/api/academic` | GET, POST | Academic records & seeding |
+| `/api/timetable` | GET, POST | Timetable management |
+| `/api/messages` | GET, POST | Internal messaging |
+| `/api/import` | POST | CSV/XLSX data import |
+| `/api/export` | GET | Data export (JSON/CSV) |
+| `/api/seed-data` | POST | Generate sample data |
+
+---
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the **MIT License**.
