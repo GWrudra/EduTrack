@@ -49,7 +49,6 @@ A comprehensive, full-stack student affairs management system built with **Next.
 
 ```
 EduTrack/
-├── package.json              # Root — delegates to frontend/
 ├── frontend/                 # Next.js application
 │   ├── src/
 │   │   ├── app/              # Pages, layouts, API routes
@@ -87,15 +86,13 @@ EduTrack/
 ```bash
 # 1. Clone the repository
 git clone <repository-url>
-cd EduTrack
+cd EduTrack/frontend
 
-# 2. Install all dependencies (root + frontend)
-npm run install-all
+# 2. Install dependencies
+npm install
 
 # 3. Set up environment variables
-cd frontend
 cp .env.example .env   # Then edit .env with your settings
-cd ..
 
 # 4. Initialize the database
 npm run db:push
@@ -113,7 +110,7 @@ Create `frontend/.env` with:
 ```env
 DATABASE_URL="file:../backend/dev.db"
 JWT_SECRET="your-secret-key-here"
-NODE_ENV="development"
+NODE_ENV="development"  
 ```
 
 > ⚠️ **Change `JWT_SECRET`** to a strong random string in production.
