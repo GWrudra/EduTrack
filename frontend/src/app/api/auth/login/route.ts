@@ -103,82 +103,12 @@ export async function POST(request: NextRequest) {
 
     if (!user) {
       const isFaculty = normalizedCollegeId.startsWith('T');
-      const isStudent = normalizedCollegeId.startsWith('CSE') || 
-                        normalizedCollegeId.startsWith('ECE') || 
-                        normalizedCollegeId.startsWith('ME') || 
-                        normalizedCollegeId.startsWith('CE') || 
-                        normalizedCollegeId.startsWith('IT');
-
-      // Allow auto-registration with default password for any ID format
-      if (password === 'password123') {
-        let mockUser;
-        if (isFaculty) {
-          const facultyData: Record<string, { name: string; department: string }> = {
-            'T001': { name: 'Dr. Rajesh Sharma', department: 'CSE' },
-            'T002': { name: 'Prof. Ananya Das', department: 'CSE' },
-            'T003': { name: 'Dr. Vikram Patel', department: 'ECE' },
-            'T004': { name: 'Prof. Sneha Roy', department: 'ECE' },
-            'T005': { name: 'Dr. Amit Verma', department: 'ME' },
-          };
-          const faculty = facultyData[collegeId] || { name: 'Faculty Member', department: 'CSE' };
-          
-          // Create faculty user
-          const hashedPassword = await bcrypt.hash(password, 10);
-          mockUser = await db.user.create({
-            data: {
-              collegeId,
-              password: hashedPassword,
-              name: faculty.name,
-              role: 'faculty',
-              department: faculty.department,
-            },
-          });
-        } else {
-          // Create student user - detect branch from ID or default to CSE
-          let branch = 'CSE';
-          if (isStudent) {
-            branch = collegeId.substring(0, 3);
-          }
-          const hashedPassword = await bcrypt.hash(password, 10);
-          mockUser = await db.user.create({
-            data: {
-              collegeId,
-              password: hashedPassword,
-              name: `Student ${collegeId}`,
-              role: 'student',
-              branch,
-              section: 'A',
-              year: 1,
-              parentEmail: `parent@${collegeId.toLowerCase()}.com`,
-              parentPhone: '9876543210',
-            },
-          });
-        }
-
-        const token = jwt.sign(
-          { id: mockUser.id, collegeId: mockUser.collegeId, role: mockUser.role },
-          JWT_SECRET,
-          { expiresIn: '7d' }
-        );
-
-        return NextResponse.json({
-          success: true,
-          user: {
-            id: mockUser.id,
-            collegeId: mockUser.collegeId,
-            name: mockUser.name,
-            role: mockUser.role,
-            branch: mockUser.branch,
-            section: mockUser.section,
-            year: mockUser.year,
-            department: mockUser.department,
-          },
-          token,
-        });
-      }
-
+      // Removed auto-registration and default password fallback. If user not found, return a generic invalid credentials response.
+      // No default password logic here.
+      // End of removed block.
+      // Return generic invalid credentials response when user not found.
       return NextResponse.json(
-        { success: false, message: 'Invalid credentials. Use default password: password123 for first login.' },
+        { success: false, message: 'Invalid credentials' },
         { status: 401 }
       );
     }
@@ -187,20 +117,12 @@ export async function POST(request: NextRequest) {
     const isValidPassword = await bcrypt.compare(password, user.password);
     if (!isValidPassword) {
       // Allow password123 as a default/reset password for non-admin users
-      if (password === 'password123' && user.role !== 'admin') {
-        const hashedPassword = await bcrypt.hash(password, 10);
-        await db.user.update({
-          where: { id: user.id },
-          data: { password: hashedPassword },
-        });
-        // Continue to token generation below
-      } else {
         return NextResponse.json(
           { success: false, message: 'Invalid credentials' },
           { status: 401 }
         );
       }
-    }
+
 
     // Generate JWT token
     const token = jwt.sign(
