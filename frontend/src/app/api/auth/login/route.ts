@@ -2,11 +2,32 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import { checkRateLimit, getRateLimitKey } from '@/lib/rateLimit';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'edutrack-secret-key-2024';
 
 export async function POST(request: NextRequest) {
   try {
+    // Get client IP for rate limiting
+    const ip = request.headers.get('x-forwarded-for') || 
+               request.headers.get('x-real-ip') || 
+               'unknown';
+    
+    const rateLimitKey = getRateLimitKey(ip);
+    const rateLimitCheck = checkRateLimit(rateLimitKey);
+
+    if (!rateLimitCheck.allowed) {
+      const resetTime = rateLimitCheck.resetTime ? new Date(rateLimitCheck.resetTime).toISOString() : 'unknown';
+      return NextResponse.json(
+        { 
+          success: false, 
+          message: 'Too many login attempts. Please try again in 2 minutes.',
+          resetTime 
+        },
+        { status: 429 }
+      );
+    }
+
     const { collegeId, password } = await request.json();
 
     if (!collegeId || !password) {
