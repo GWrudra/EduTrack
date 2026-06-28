@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
 import { CheckCircle2, AlertCircle, Eye, EyeOff } from 'lucide-react';
+import ReCAPTCHA from 'react-google-recaptcha';
 
 // ============ AUTH COMPONENTS ============
 
@@ -20,9 +21,14 @@ export function LoginPage({ onLogin }: { onLogin: (user: User, token: string) =>
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [recaptchaToken, setRecaptchaToken] = useState<string | null>(null);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!recaptchaToken) {
+      setError('Please complete the reCAPTCHA');
+      return;
+    }
     setLoading(true);
     setError('');
 
@@ -30,7 +36,7 @@ export function LoginPage({ onLogin }: { onLogin: (user: User, token: string) =>
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ collegeId, password }),
+        body: JSON.stringify({ collegeId, password, recaptchaToken }),
       });
 
       const data = await res.json();
@@ -101,6 +107,12 @@ export function LoginPage({ onLogin }: { onLogin: (user: User, token: string) =>
                     {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                   </button>
                 </div>
+              </div>
+              <div className="flex justify-center py-2">
+                <ReCAPTCHA
+                  sitekey={process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY}
+                  onChange={(value) => setRecaptchaToken(value)}
+                />
               </div>
               <Button type="submit" className="w-full h-12 rounded-xl bg-gradient-to-r from-slate-600 to-slate-700 hover:from-slate-700 hover:to-slate-800 text-white font-medium" disabled={loading}>
                 {loading ? 'Signing in...' : 'Sign In'}

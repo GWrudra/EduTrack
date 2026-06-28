@@ -214,6 +214,10 @@ export function AdminUsersPage() {
     fetchUsers();
   }, []);
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, roleFilter]);
+
   const filteredUsers = users.filter(user => {
     const matchesSearch = user.name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
                           user.collegeId?.toLowerCase().includes(searchTerm.toLowerCase());

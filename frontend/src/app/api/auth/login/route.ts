@@ -28,7 +28,30 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { collegeId, password } = await request.json();
+    const { collegeId, password, recaptchaToken } = await request.json();
+  console.log('Received reCAPTCHA token:', recaptchaToken);
+
+    // Verify reCAPTCHA token
+    if (!process.env.RECAPTCHA_SECRET) {
+      console.error('RECAPTCHA_SECRET not set');
+      return NextResponse.json({ success: false, message: 'Server configuration error: reCAPTCHA secret missing' }, { status: 500 });
+    }
+    if (!recaptchaToken) {
+      return NextResponse.json({ success: false, message: 'reCAPTCHA token missing' }, { status: 400 });
+    }
+    const recaptchaResponse = await fetch(`https://www.google.com/recaptcha/api/siteverify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        secret: process.env.RECAPTCHA_SECRET || '',
+        response: recaptchaToken,
+      })
+    });
+    const recaptchaData = await recaptchaResponse.json();
+    if (!recaptchaData.success) {
+      console.error('reCAPTCHA verification failed:', recaptchaData);
+      return NextResponse.json({ success: false, message: recaptchaData['error-codes'] ? `reCAPTCHA verification failed: ${recaptchaData['error-codes'].join(', ')}` : 'reCAPTCHA verification failed' }, { status: 400 });
+    }
 
     if (!collegeId || !password) {
       return NextResponse.json(

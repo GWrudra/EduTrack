@@ -269,3 +269,37 @@ model TimetableEntry {
   @@index([section, dayOfWeek])
   @@index([dayOfWeek])
 }
+
+model CaptchaSession {
+  id        String   @id
+  collegeId String
+  token     String   @unique
+  answer    String
+  expiresAt DateTime
+  attempts  Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([collegeId, expiresAt])
+}
+
+model LoginAttempt {
+  id        String   @id
+  collegeId String
+  success   Boolean
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([collegeId, createdAt])
+  @@index([ipAddress, createdAt])
+}
+
+model PasswordReset {
+  id        String   @id
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId, expiresAt])
+}
