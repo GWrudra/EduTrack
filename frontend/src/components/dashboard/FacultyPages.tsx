@@ -667,11 +667,35 @@ export function MessagingPage() {
 // ============ REPORTS PAGE (Faculty) ============
 
 export function ReportsPage() {
-  const { riskStudents } = useAppStore();
+  const { riskStudents, setRiskStudents } = useAppStore();
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const fetchRiskStudents = async () => {
+      if (riskStudents.length > 0) return;
+      setLoading(true);
+      try {
+        const res = await fetch('/api/users?role=student');
+        const data = await res.json();
+        if (data.success) {
+          setRiskStudents(data.users || []);
+        }
+      } catch (error) {
+        console.error('Failed to fetch risk students for report:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchRiskStudents();
+  }, [riskStudents.length, setRiskStudents]);
 
   const handleExportCSV = () => {
+    if (riskStudents.length === 0) {
+      toast.error('No student data available to export');
+      return;
+    }
     const headers = ['ID', 'Name', 'Risk', 'Attendance', 'CGPA'];
-    const rows = riskStudents.map(s => [s.collegeId, s.name, s.riskLevel, s.attendance+'%', s.cgpa]);
+    const rows = riskStudents.map(s => [s.collegeId, `"${s.name}"`, s.riskLevel, `"${s.attendance}%"`, s.cgpa]);
     const content = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
     const blob = new Blob([content], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
@@ -684,21 +708,35 @@ export function ReportsPage() {
       <h2 className="text-xl font-bold">Analytics Reports</h2>
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-         <Card className="p-6 cursor-pointer hover:bg-slate-50 transition-colors border-0 shadow-md rounded-2xl" onClick={handleExportCSV}>
+         <Card 
+           className={`p-6 cursor-pointer hover:bg-slate-50 transition-colors border-0 shadow-md rounded-2xl ${loading ? 'opacity-80 pointer-events-none' : ''}`} 
+           onClick={loading ? undefined : handleExportCSV}
+         >
             <div className="flex items-center gap-4">
-               <div className="w-12 h-12 rounded-2xl bg-blue-100 flex items-center justify-center"><FileText className="w-6 h-6 text-blue-600"/></div>
-               <div><h3 className="font-bold">Student Risk CSV</h3><p className="text-xs text-muted-foreground">Download detailed risk matrix</p></div>
+               <div className="w-12 h-12 rounded-2xl bg-blue-100 flex items-center justify-center">
+                 {loading ? <RefreshCw className="w-6 h-6 text-blue-600 animate-spin"/> : <FileText className="w-6 h-6 text-blue-600"/>}
+               </div>
+               <div>
+                 <h3 className="font-bold">Student Risk CSV</h3>
+                 <p className="text-xs text-muted-foreground">
+                   {loading ? 'Fetching student risk data...' : 'Download detailed risk matrix'}
+                 </p>
+               </div>
             </div>
          </Card>
       </div>
 
       <Card className="border-0 shadow-md rounded-2xl p-6">
          <h3 className="text-sm font-bold mb-4">Risk Distribution Summary</h3>
-         <div className="grid grid-cols-3 gap-4 text-center">
-            <div><p className="text-2xl font-bold text-red-600">{riskStudents.filter(s=>s.riskLevel==='high').length}</p><p className="text-xs text-muted-foreground">High Risk</p></div>
-            <div><p className="text-2xl font-bold text-orange-600">{riskStudents.filter(s=>s.riskLevel==='medium').length}</p><p className="text-xs text-muted-foreground">Medium Risk</p></div>
-            <div><p className="text-2xl font-bold text-emerald-600">{riskStudents.filter(s=>s.riskLevel==='low').length}</p><p className="text-xs text-muted-foreground">Safe</p></div>
-         </div>
+         {loading ? (
+            <div className="flex justify-center py-4"><RefreshCw className="w-6 h-6 animate-spin text-muted-foreground" /></div>
+         ) : (
+            <div className="grid grid-cols-3 gap-4 text-center">
+               <div><p className="text-2xl font-bold text-red-600">{riskStudents.filter(s=>s.riskLevel==='high').length}</p><p className="text-xs text-muted-foreground">High Risk</p></div>
+               <div><p className="text-2xl font-bold text-orange-600">{riskStudents.filter(s=>s.riskLevel==='medium').length}</p><p className="text-xs text-muted-foreground">Medium Risk</p></div>
+               <div><p className="text-2xl font-bold text-emerald-600">{riskStudents.filter(s=>s.riskLevel==='low').length}</p><p className="text-xs text-muted-foreground">Safe</p></div>
+            </div>
+         )}
       </Card>
     </div>
   );
