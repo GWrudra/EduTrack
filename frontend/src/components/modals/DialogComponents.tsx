@@ -243,7 +243,7 @@ export function StudentDetailsDialog({ open, onOpenChange, student, onSendWarnin
 // ============ NOTIFICATIONS DIALOG ============
 
 export function NotificationsDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
-  const { messages, user } = useAppStore();
+  const { messages, user, markMessageAsRead, markAllMessagesAsRead } = useAppStore();
   const userMessages = user?.role === 'student'
     ? messages.filter(m => m.senderId === user.id || m.receiverId === user.id || m.targetType === 'student' || m.targetType === 'all')
     : messages;
@@ -260,9 +260,9 @@ export function NotificationsDialog({ open, onOpenChange }: { open: boolean; onO
 
   const getMessageBg = (type: string) => {
     switch (type) {
-      case 'warning': return 'bg-orange-100 dark:bg-orange-900/30';
-      case 'alert': return 'bg-red-100 dark:bg-red-900/30';
-      default: return 'bg-blue-100 dark:bg-blue-900/30';
+      case 'warning': return 'bg-orange-100 dark:bg-orange-950/50';
+      case 'alert': return 'bg-red-100 dark:bg-red-950/50';
+      default: return 'bg-blue-100 dark:bg-blue-950/50';
     }
   };
 
@@ -270,11 +270,23 @@ export function NotificationsDialog({ open, onOpenChange }: { open: boolean; onO
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="rounded-2xl max-w-md max-h-[80vh] overflow-hidden flex flex-col">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Bell className="w-5 h-5" />
-            Notifications
-            {unreadCount > 0 && <Badge className="bg-red-500 text-white text-xs rounded-full ml-2">{unreadCount} new</Badge>}
-          </DialogTitle>
+          <div className="flex items-center justify-between">
+            <DialogTitle className="flex items-center gap-2">
+              <Bell className="w-5 h-5" />
+              Notifications
+              {unreadCount > 0 && <Badge className="bg-red-500 text-white text-xs rounded-full ml-2">{unreadCount} new</Badge>}
+            </DialogTitle>
+            {unreadCount > 0 && (
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => user && markAllMessagesAsRead(user.id)} 
+                className="text-xs text-blue-500 hover:text-blue-700 h-8 px-2 rounded-lg"
+              >
+                Mark all read
+              </Button>
+            )}
+          </div>
         </DialogHeader>
         <ScrollArea className="flex-1 -mx-6">
           <div className="px-6 pb-4 space-y-2">
@@ -282,7 +294,15 @@ export function NotificationsDialog({ open, onOpenChange }: { open: boolean; onO
               <div className="text-center py-8 text-muted-foreground">No notifications yet</div>
             ) : (
               userMessages.map((message) => (
-                <div key={message.id} className={`p-3 rounded-xl border ${!message.isRead ? 'bg-slate-50 border-slate-200' : 'bg-gray-50 border-transparent'}`}>
+                <div 
+                  key={message.id} 
+                  onClick={() => !message.isRead && markMessageAsRead(message.id)}
+                  className={`p-3 rounded-xl border transition-all cursor-pointer ${
+                    !message.isRead 
+                      ? 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800/80' 
+                      : 'bg-slate-100/55 dark:bg-slate-950/40 border-transparent dark:border-transparent'
+                  }`}
+                >
                   <div className="flex items-start gap-3">
                     <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${getMessageBg(message.messageType)}`}>
                       {getMessageIcon(message.messageType)}

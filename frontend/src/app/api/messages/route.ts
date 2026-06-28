@@ -13,19 +13,46 @@ export async function GET(request: NextRequest) {
       }, { status: 400 });
     }
 
+    // Fetch the user's role to determine if they should receive role-based broadcasts
+    const queryingUser = await db.user.findUnique({
+      where: { id: userId },
+      select: { role: true }
+    });
+
+    if (!queryingUser) {
+      return NextResponse.json({
+        success: false,
+        message: 'User not found'
+      }, { status: 404 });
+    }
+
+    const OR_conditions: any[] = [
+      { senderId: userId },
+      { receiverId: userId },
+      { targetType: 'all' }
+    ];
+
+    if (queryingUser.role === 'student') {
+      OR_conditions.push({
+        AND: [
+          { targetType: 'student' },
+          { receiverId: null }
+        ]
+      });
+    }
+
+    if (queryingUser.role === 'faculty') {
+      OR_conditions.push({
+        AND: [
+          { targetType: 'faculty' },
+          { receiverId: null }
+        ]
+      });
+    }
+
     const messages = await db.message.findMany({
       where: {
-        OR: [
-          { senderId: userId },
-          { receiverId: userId },
-          { targetType: 'all' },
-          {
-            AND: [
-              { targetType: 'student' },
-              { sender: { role: 'faculty' } }
-            ]
-          }
-        ]
+        OR: OR_conditions
       },
       include: {
         sender: {
@@ -137,6 +164,55 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: false,
       message: 'Failed to send message'
+    }, { status: 500 });
+  }
+}
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const messageId = searchParams.get('messageId');
+    const all = searchParams.get('all');
+    const userId = searchParams.get('userId');
+
+    if (all === 'true' && userId) {
+      await db.message.updateMany({
+        where: {
+          receiverId: userId,
+          isRead: false
+        },
+        data: {
+          isRead: true
+        }
+      });
+      return NextResponse.json({
+        success: true,
+        message: 'All messages marked as read'
+      });
+    }
+
+    if (!messageId) {
+      return NextResponse.json({
+        success: false,
+        message: 'Message ID is required'
+      }, { status: 400 });
+    }
+
+    const updatedMessage = await db.message.update({
+      where: { id: messageId },
+      data: { isRead: true }
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: updatedMessage
+    });
+
+  } catch (error) {
+    console.error('Update message error:', error);
+    return NextResponse.json({
+      success: false,
+      message: 'Failed to update message'
     }, { status: 500 });
   }
 }

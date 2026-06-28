@@ -170,6 +170,8 @@ interface AppState {
   setMessages: (messages: Message[]) => void;
   addMessage: (message: Message) => void;
   fetchMessages: () => Promise<void>;
+  markMessageAsRead: (messageId: string) => Promise<void>;
+  markAllMessagesAsRead: (userId: string) => Promise<void>;
   setDailyQuote: (quote: DailyQuote) => void;
   setTimetableFilters: (filters: { section: string | null; semester: number | null }) => void;
   exportData: () => string;
@@ -301,6 +303,26 @@ export const useAppStore = create<AppState>()(
           }
         } catch (error) {
           console.error('Failed to fetch messages:', error);
+        }
+      },
+      markMessageAsRead: async (messageId) => {
+        set((state) => ({
+          messages: state.messages.map((m) => m.id === messageId ? { ...m, isRead: true } : m)
+        }));
+        try {
+          await fetch(`/api/messages?messageId=${messageId}`, { method: 'PATCH' });
+        } catch (error) {
+          console.error('Failed to mark message as read on server:', error);
+        }
+      },
+      markAllMessagesAsRead: async (userId) => {
+        set((state) => ({
+          messages: state.messages.map((m) => m.receiverId === userId || m.id === userId ? { ...m, isRead: true } : { ...m, isRead: true }) // Mark all as read locally
+        }));
+        try {
+          await fetch(`/api/messages?all=true&userId=${userId}`, { method: 'PATCH' });
+        } catch (error) {
+          console.error('Failed to mark all messages as read on server:', error);
         }
       },
       setDailyQuote: (dailyQuote) => set({ dailyQuote }),

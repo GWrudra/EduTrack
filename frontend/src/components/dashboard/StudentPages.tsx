@@ -843,7 +843,7 @@ export function AttendanceCGPAPage() {
 // ============ MESSAGES COMPONENT ============
 
 export function MessagesPage() {
-  const { messages, user, setMessages, addMessage } = useAppStore();
+  const { messages, user, setMessages, addMessage, markMessageAsRead, markAllMessagesAsRead } = useAppStore();
   const [filter, setFilter] = useState<'all' | 'unread' | 'warning' | 'alert' | 'info'>('all');
   const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
   const [activeTab, setActiveTabState] = useState<'messages' | 'contact'>('messages');
@@ -933,7 +933,7 @@ export function MessagesPage() {
           <h2 className="text-xl font-bold">Messages</h2>
           <p className="text-sm text-muted-foreground">{unreadCount > 0 ? `${unreadCount} unread` : 'All caught up!'}</p>
         </div>
-        {unreadCount > 0 && <Button variant="outline" size="sm" onClick={() => setMessages(messages.map(m=>({...m, isRead:true})))} className="rounded-xl"><CheckCircle2 className="w-4 h-4 mr-2" /> Mark all read</Button>}
+        {unreadCount > 0 && <Button variant="outline" size="sm" onClick={() => user && markAllMessagesAsRead(user.id)} className="rounded-xl"><CheckCircle2 className="w-4 h-4 mr-2" /> Mark all read</Button>}
       </div>
 
       <Tabs value={activeTab} onValueChange={(v) => setActiveTabState(v as any)}>
@@ -951,7 +951,7 @@ export function MessagesPage() {
            </div>
            {filteredMessages.length === 0 ? <Card className="p-12 text-center text-muted-foreground"><MessageSquare className="w-12 h-12 mx-auto mb-2 opacity-20" /> No messages</Card> : 
              filteredMessages.map(m => (
-               <Card key={m.id} className={`p-4 cursor-pointer hover:shadow-md transition-shadow ${!m.isRead ? 'border-primary/20 bg-primary/5' : ''}`} onClick={()=>{setSelectedMessage(m); if(!m.isRead) setMessages(messages.map(x=>x.id===m.id?{...x,isRead:true}:x))}}>
+               <Card key={m.id} className={`p-4 cursor-pointer hover:shadow-md transition-shadow ${!m.isRead ? 'border-primary/20 bg-primary/5' : ''}`} onClick={()=>{setSelectedMessage(m); if(!m.isRead) markMessageAsRead(m.id)}}>
                   <div className="flex gap-3">
                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${getMessageBg(m.messageType)}`}>{getMessageIcon(m.messageType)}</div>
                     <div className="flex-1 min-w-0">
