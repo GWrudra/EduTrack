@@ -50,7 +50,8 @@ import {
   Send, 
   CheckCircle2, 
   Sun, 
-  Moon 
+  Moon,
+  Search
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { getInitial, getOrdinal } from '@/lib/utils';
@@ -852,6 +853,8 @@ export function MessagesPage() {
   const [contactSubject, setContactSubject] = useState('');
   const [contactMessage, setContactMessage] = useState('');
   const [facultyMembers, setFacultyMembers] = useState<any[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [teacherSearch, setTeacherSearch] = useState('');
 
   useEffect(() => {
     const fetchFaculty = async () => {
@@ -876,10 +879,24 @@ export function MessagesPage() {
     : messages;
 
   const filteredMessages = userMessages.filter(m => {
-    if (filter === 'all') return true;
-    if (filter === 'unread') return !m.isRead;
-    return m.messageType === filter;
+    if (filter !== 'all' && filter !== 'unread') {
+      if (m.messageType !== filter) return false;
+    }
+    if (filter === 'unread' && m.isRead) return false;
+
+    if (searchQuery.trim() === '') return true;
+    const query = searchQuery.toLowerCase();
+    return (
+      (m.senderName || '').toLowerCase().includes(query) ||
+      (m.title || '').toLowerCase().includes(query) ||
+      (m.content || '').toLowerCase().includes(query)
+    );
   });
+
+  const filteredTeachers = facultyMembers.filter(t => 
+    t.name.toLowerCase().includes(teacherSearch.toLowerCase()) || 
+    (t.department || '').toLowerCase().includes(teacherSearch.toLowerCase())
+  );
 
   const unreadCount = userMessages.filter(m => !m.isRead).length;
 
@@ -943,11 +960,23 @@ export function MessagesPage() {
         </TabsList>
 
         <TabsContent value="messages" className="space-y-2 mt-4">
-           {/* Filters simplified */}
-           <div className="flex gap-2 mb-4 overflow-x-auto">
-              {['all', 'unread', 'warning', 'alert'].map(f => (
-                <Button key={f} size="sm" variant={filter===f ? 'default' : 'outline'} onClick={()=>setFilter(f as any)} className="rounded-xl capitalize">{f}</Button>
-              ))}
+           {/* Filters & Search */}
+           <div className="flex flex-col sm:flex-row gap-2 mb-4">
+              <div className="flex gap-2 overflow-x-auto flex-1">
+                 {['all', 'unread', 'warning', 'alert'].map(f => (
+                   <Button key={f} size="sm" variant={filter===f ? 'default' : 'outline'} onClick={()=>setFilter(f as any)} className="rounded-xl capitalize">{f}</Button>
+                 ))}
+              </div>
+              <div className="relative w-full sm:w-64">
+                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                 <Input 
+                   type="text" 
+                   placeholder="Search messages by sender..." 
+                   value={searchQuery}
+                   onChange={(e) => setSearchQuery(e.target.value)}
+                   className="pl-9 h-9 rounded-xl text-xs bg-slate-50/50 dark:bg-slate-900/50"
+                 />
+              </div>
            </div>
            {filteredMessages.length === 0 ? <Card className="p-12 text-center text-muted-foreground"><MessageSquare className="w-12 h-12 mx-auto mb-2 opacity-20" /> No messages</Card> : 
              filteredMessages.map(m => (
@@ -974,15 +1003,29 @@ export function MessagesPage() {
 
         <TabsContent value="contact" className="space-y-4 mt-4">
            <Card className="p-4 space-y-4">
-              <div className="space-y-2">
-                 <Label>Teacher</Label>
-                 <Select value={selectedTeacher} onValueChange={setSelectedTeacher}>
-                    <SelectTrigger className="rounded-xl"><SelectValue placeholder="Select teacher" /></SelectTrigger>
-                    <SelectContent>
-                       {facultyMembers.map(f => <SelectItem key={f.id} value={f.id}>{f.name} ({f.subject})</SelectItem>)}
-                    </SelectContent>
-                 </Select>
-              </div>
+               <div className="space-y-2">
+                  <Label>Teacher</Label>
+                  <div className="relative">
+                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                     <Input 
+                       type="text" 
+                       placeholder="Filter teachers by name or subject..." 
+                       value={teacherSearch} 
+                       onChange={e => setTeacherSearch(e.target.value)} 
+                       className="pl-9 h-9 rounded-xl mb-2 text-xs"
+                     />
+                  </div>
+                  <Select value={selectedTeacher} onValueChange={setSelectedTeacher}>
+                     <SelectTrigger className="rounded-xl"><SelectValue placeholder="Select teacher" /></SelectTrigger>
+                     <SelectContent>
+                        {filteredTeachers.length === 0 ? (
+                           <SelectItem value="none" disabled className="text-center text-xs text-muted-foreground">No teachers found</SelectItem>
+                        ) : (
+                           filteredTeachers.map(f => <SelectItem key={f.id} value={f.id}>{f.name} ({f.subject})</SelectItem>)
+                        )}
+                     </SelectContent>
+                  </Select>
+               </div>
               <div className="space-y-2">
                  <Label>Subject</Label>
                  <Input value={contactSubject} onChange={e=>setContactSubject(e.target.value)} className="rounded-xl" />

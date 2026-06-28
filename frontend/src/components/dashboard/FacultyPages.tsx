@@ -595,10 +595,27 @@ export function MessagingPage() {
   const [composeData, setComposeData] = useState({
     title: '', content: '', targetType: 'student' as any, messageType: 'warning' as any, selectedStudentId: ''
   });
+  const [searchQuery, setSearchQuery] = useState('');
+  const [studentSearch, setStudentSearch] = useState('');
 
   useEffect(() => {
     fetch('/api/users?role=student').then(r=>r.json()).then(d=>d.success && setStudents(d.users));
   }, []);
+
+  const filteredMessages = messages.filter(m => {
+    if (searchQuery.trim() === '') return true;
+    const query = searchQuery.toLowerCase();
+    return (
+      (m.senderName || '').toLowerCase().includes(query) ||
+      (m.title || '').toLowerCase().includes(query) ||
+      (m.content || '').toLowerCase().includes(query)
+    );
+  });
+
+  const filteredStudents = students.filter(s => 
+    s.name.toLowerCase().includes(studentSearch.toLowerCase()) || 
+    s.collegeId.toLowerCase().includes(studentSearch.toLowerCase())
+  );
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -620,13 +637,25 @@ export function MessagingPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row gap-2 justify-between sm:items-center">
          <h2 className="text-xl font-bold">Announcements</h2>
-         <Button size="sm" onClick={()=>setIsComposeOpen(true)} className="rounded-xl"><Send className="w-4 h-4 mr-2" /> Compose</Button>
+         <div className="flex gap-2 items-center">
+            <div className="relative w-full sm:w-64">
+               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+               <Input 
+                 type="text" 
+                 placeholder="Search announcements..." 
+                 value={searchQuery}
+                 onChange={(e) => setSearchQuery(e.target.value)}
+                 className="pl-9 h-9 rounded-xl text-xs bg-slate-50/50 dark:bg-slate-900/50"
+               />
+            </div>
+            <Button size="sm" onClick={()=>setIsComposeOpen(true)} className="rounded-xl"><Send className="w-4 h-4 mr-2" /> Compose</Button>
+         </div>
       </div>
 
       <div className="space-y-2">
-         {messages.slice().reverse().map(m => (
+         {filteredMessages.slice().reverse().map(m => (
             <Card key={m.id} className="p-4 flex flex-row gap-3 items-center">
                <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
                  m.messageType === 'warning' || m.messageType === 'alert'
@@ -656,13 +685,33 @@ export function MessagingPage() {
             <DialogHeader><DialogTitle>New Announcement</DialogTitle></DialogHeader>
             <form onSubmit={handleSendMessage} className="space-y-3">
                <Input value={composeData.title} onChange={e=>setComposeData({...composeData, title:e.target.value})} placeholder="Title" required className="rounded-xl h-10" />
-               <Select value={composeData.selectedStudentId} onValueChange={v=>setComposeData({...composeData, selectedStudentId:v})}>
-                  <SelectTrigger className="rounded-xl h-10"><SelectValue placeholder="Select Target" /></SelectTrigger>
-                  <SelectContent>
-                     <SelectItem value="all">All Students</SelectItem>
-                     {students.map(s => <SelectItem key={s.id} value={s.id}>{s.name} ({s.collegeId})</SelectItem>)}
-                  </SelectContent>
-               </Select>
+               <div className="space-y-2">
+                  <Label className="text-xs">Search / Select Student</Label>
+                  <div className="relative">
+                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                     <Input 
+                       type="text" 
+                       placeholder="Filter students by name or roll number..." 
+                       value={studentSearch} 
+                       onChange={e => setStudentSearch(e.target.value)} 
+                       className="pl-9 h-9 rounded-xl text-xs"
+                     />
+                  </div>
+                  <Select value={composeData.selectedStudentId} onValueChange={v=>setComposeData({...composeData, selectedStudentId:v})}>
+                     <SelectTrigger className="rounded-xl h-10"><SelectValue placeholder="Select Target Student" /></SelectTrigger>
+                     <SelectContent className="max-h-60">
+                        <SelectItem value="all">All Students ({filteredStudents.length} matches)</SelectItem>
+                        {filteredStudents.slice(0, 100).map(s => (
+                           <SelectItem key={s.id} value={s.id}>{s.name} ({s.collegeId})</SelectItem>
+                        ))}
+                        {filteredStudents.length > 100 && (
+                           <SelectItem value="more" disabled className="text-center text-xs text-muted-foreground">
+                             Showing top 100 matches. Refine search to see more.
+                           </SelectItem>
+                        )}
+                     </SelectContent>
+                  </Select>
+               </div>
                <Textarea value={composeData.content} onChange={e=>setComposeData({...composeData, content:e.target.value})} placeholder="Message content..." required rows={4} className="rounded-xl" />
                <Button type="submit" className="w-full rounded-xl h-11 bg-slate-700 hover:bg-slate-800 text-white">Send Announcement</Button>
             </form>
