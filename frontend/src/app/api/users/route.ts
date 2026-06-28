@@ -12,6 +12,25 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get('search');
     const branch = searchParams.get('branch');
     const department = searchParams.get('department');
+    const lite = searchParams.get('lite') === 'true';
+    const statsOnly = searchParams.get('statsOnly') === 'true';
+
+    if (statsOnly) {
+      const totalUsers = await db.user.count();
+      const studentCount = await db.user.count({ where: { role: 'student' } });
+      const facultyCount = await db.user.count({ where: { role: 'faculty' } });
+      const adminCount = await db.user.count({ where: { role: 'admin' } });
+
+      return NextResponse.json({
+        success: true,
+        stats: {
+          total: totalUsers,
+          students: studentCount,
+          faculty: facultyCount,
+          admins: adminCount
+        }
+      });
+    }
 
     // Build where clause
     const where: any = {};
@@ -61,7 +80,7 @@ export async function GET(request: NextRequest) {
 
     // Read cached risk assessments from DB (calculated during academic data seeding)
     let usersWithRisk = users;
-    if (!role || role === 'all' || role === 'student') {
+    if (!lite && (!role || role === 'all' || role === 'student')) {
       const studentIds = users.filter(u => u.role === 'student').map(u => u.id);
 
       if (studentIds.length > 0) {

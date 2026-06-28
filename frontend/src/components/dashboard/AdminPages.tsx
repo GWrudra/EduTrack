@@ -63,7 +63,7 @@ export function AdminDashboard() {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const res = await fetch('/api/users');
+        const res = await fetch('/api/users?statsOnly=true');
         const data = await res.json();
         if (data.success) {
           setStats(data.stats || { total: 0, students: 0, faculty: 0, admins: 0 });
@@ -198,7 +198,7 @@ export function AdminUsersPage() {
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/users');
+      const res = await fetch('/api/users?lite=true');
       const data = await res.json();
       if (data.success) {
         setUsers(data.users || []);
@@ -477,7 +477,7 @@ export function AdminImportPage() {
 
   const fetchData = async () => {
     try {
-      const uRes = await fetch('/api/users');
+      const uRes = await fetch('/api/users?statsOnly=true');
       const uData = await uRes.json();
       if (uData.success) {
         setStats({ total: uData.stats.total, students: uData.stats.students, faculty: uData.stats.faculty });
