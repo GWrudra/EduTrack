@@ -776,7 +776,7 @@ export function ReportsPage() {
       'Risk Factors'
     ];
 
-    const rows = atRiskStudents.map(s => [
+    const rows = atRiskStudents.map((s: any) => [
       s.collegeId, 
       `"${s.name}"`, 
       s.email || '-', 
