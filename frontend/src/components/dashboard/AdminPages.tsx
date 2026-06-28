@@ -448,6 +448,12 @@ export function AdminUsersPage() {
 
       <Dialog open={!!selectedUserForDetails} onOpenChange={o => !o && setSelectedUserForDetails(null)}>
          <DialogContent className="rounded-2xl max-w-md">
+            <DialogHeader className="hidden">
+               <DialogTitle>User Details</DialogTitle>
+               <DialogDescription>
+                 Detailed profile information for the selected account.
+               </DialogDescription>
+            </DialogHeader>
             {selectedUserForDetails && (
                <div className="space-y-4">
                   <div className="flex items-center gap-3">
