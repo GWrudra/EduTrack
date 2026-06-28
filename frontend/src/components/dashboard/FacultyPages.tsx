@@ -694,13 +694,53 @@ export function ReportsPage() {
       toast.error('No student data available to export');
       return;
     }
-    const headers = ['ID', 'Name', 'Risk', 'Attendance', 'CGPA'];
-    const rows = riskStudents.map(s => [s.collegeId, `"${s.name}"`, s.riskLevel, `"${s.attendance}%"`, s.cgpa]);
+    // Filter: only high and medium risk students
+    const atRiskStudents = riskStudents.filter(s => s.riskLevel === 'high' || s.riskLevel === 'medium');
+
+    if (atRiskStudents.length === 0) {
+      toast.error('No at-risk students found to export');
+      return;
+    }
+
+    const headers = [
+      'Roll No', 
+      'Name', 
+      'Email', 
+      'Phone', 
+      'Branch', 
+      'Section', 
+      'Year', 
+      'Parent Email', 
+      'Parent Phone', 
+      'Attendance', 
+      'CGPA', 
+      'Risk Level', 
+      'Risk Score', 
+      'Risk Factors'
+    ];
+
+    const rows = atRiskStudents.map(s => [
+      s.collegeId, 
+      `"${s.name}"`, 
+      s.email || '-', 
+      s.phone || '-', 
+      s.branch || '-', 
+      s.section || '-', 
+      s.year || '-', 
+      s.parentEmail || '-', 
+      s.parentPhone || '-', 
+      `"${s.attendance.toFixed(1)}%"`, 
+      s.cgpa || 0, 
+      s.riskLevel, 
+      `"${s.riskScore.toFixed(1)}%"`, 
+      `"${(s as any).factors || '-'}"`
+    ]);
+
     const content = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
     const blob = new Blob([content], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = `risk-report.csv`; a.click();
-    toast.success('Report exported');
+    const a = document.createElement('a'); a.href = url; a.download = `at-risk-students-report.csv`; a.click();
+    toast.success('At-risk student report exported');
   };
 
   return (
