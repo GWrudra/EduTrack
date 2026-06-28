@@ -627,19 +627,27 @@ export function MessagingPage() {
 
       <div className="space-y-2">
          {messages.slice().reverse().map(m => (
-           <Card key={m.id} className="p-4 flex gap-3 items-center">
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${m.messageType==='warning'?'bg-orange-100':'bg-blue-100'}`}>
-                 {m.messageType==='warning' ? <AlertTriangle className="w-5 h-5 text-orange-600"/> : <Bell className="w-5 h-5 text-blue-600"/>}
-              </div>
-              <div className="flex-1 min-w-0">
-                 <p className="text-sm font-bold flex items-center gap-2">
-                   {m.title}
-                   {m.senderName && <span className="text-[10px] font-normal text-muted-foreground bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded-sm">From: {m.senderName}</span>}
-                 </p>
-                 <p className="text-xs text-muted-foreground line-clamp-1">{m.content}</p>
-              </div>
-              <Badge variant="outline" className="text-[10px] rounded-lg">{m.messageType}</Badge>
-           </Card>
+            <Card key={m.id} className="p-4 flex flex-row gap-3 items-center">
+               <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                 m.messageType === 'warning' || m.messageType === 'alert'
+                   ? 'bg-orange-100 dark:bg-orange-950/50' 
+                   : 'bg-blue-100 dark:bg-blue-950/50'
+               }`}>
+                  {m.messageType === 'warning' || m.messageType === 'alert' ? (
+                     <AlertTriangle className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+                  ) : (
+                     <Bell className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                  )}
+               </div>
+               <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold flex items-center gap-2">
+                    {m.title}
+                    {m.senderName && <span className="text-[10px] font-normal text-muted-foreground bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded-sm">From: {m.senderName}</span>}
+                  </p>
+                  <p className="text-xs text-muted-foreground line-clamp-1">{m.content}</p>
+               </div>
+               <Badge variant="outline" className="text-[10px] rounded-lg capitalize">{m.messageType}</Badge>
+            </Card>
          ))}
       </div>
 
