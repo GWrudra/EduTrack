@@ -194,6 +194,7 @@ export function AdminUsersPage() {
   const [newSingleUserPassword, setNewSingleUserPassword] = useState('');
   const [showPasswordDialog, setShowPasswordDialog] = useState(false);
   const [updatingPassword, setUpdatingPassword] = useState(false);
+  const [selectedUserForDetails, setSelectedUserForDetails] = useState<any>(null);
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -334,7 +335,7 @@ export function AdminUsersPage() {
                   </tr>
                 ) : (
                   paginatedUsers.map((user) => (
-                    <tr key={user.id} className="border-b last:border-0 hover:bg-slate-50 dark:hover:bg-slate-900/10 transition-colors">
+                    <tr key={user.id} className="border-b last:border-0 hover:bg-slate-50 dark:hover:bg-slate-900/10 transition-colors cursor-pointer" onClick={() => setSelectedUserForDetails(user)}>
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-3">
                           <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-xs font-bold">
@@ -358,7 +359,7 @@ export function AdminUsersPage() {
                           <Button 
                             variant="ghost" 
                             size="icon" 
-                            onClick={() => { setSelectedUserForPassword(user); setShowPasswordDialog(true); }}
+                            onClick={(e) => { e.stopPropagation(); setSelectedUserForPassword(user); setShowPasswordDialog(true); }}
                             className="h-8 w-8 text-blue-500 hover:text-blue-700 hover:bg-blue-50"
                           >
                             <Key className="w-4 h-4" />
@@ -366,7 +367,7 @@ export function AdminUsersPage() {
                           <Button 
                             variant="ghost" 
                             size="icon" 
-                            onClick={() => handleDeleteUser(user.id)}
+                            onClick={(e) => { e.stopPropagation(); handleDeleteUser(user.id); }}
                             disabled={user.role === 'admin'}
                             className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50"
                           >
@@ -441,6 +442,79 @@ export function AdminUsersPage() {
                 {updatingPassword ? <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
                 Update Password
                </Button>
+            </DialogFooter>
+         </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!selectedUserForDetails} onOpenChange={o => !o && setSelectedUserForDetails(null)}>
+         <DialogContent className="rounded-2xl max-w-md">
+            {selectedUserForDetails && (
+               <div className="space-y-4">
+                  <div className="flex items-center gap-3">
+                     <div className="w-12 h-12 rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-lg font-bold">
+                       {selectedUserForDetails.name?.[0]?.toUpperCase()}
+                     </div>
+                     <div>
+                       <p className="font-bold">{selectedUserForDetails.name}</p>
+                       <p className="text-xs text-muted-foreground">{selectedUserForDetails.collegeId}</p>
+                     </div>
+                  </div>
+                  <Separator />
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                     <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/50">
+                       <p className="text-xs text-muted-foreground">Role</p>
+                       <Badge variant="outline" className={`text-[10px] rounded-lg capitalize mt-0.5 ${
+                         selectedUserForDetails.role === 'admin' ? 'bg-red-50 text-red-700' :
+                         selectedUserForDetails.role === 'faculty' ? 'bg-purple-50 text-purple-700' : 'bg-blue-50 text-blue-700'
+                       }`}>
+                         {selectedUserForDetails.role}
+                       </Badge>
+                     </div>
+                     <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/50">
+                       <p className="text-xs text-muted-foreground">Email</p>
+                       <p className="font-medium truncate">{selectedUserForDetails.email || '-'}</p>
+                     </div>
+                     <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/50">
+                       <p className="text-xs text-muted-foreground">Phone</p>
+                       <p className="font-medium">{selectedUserForDetails.phone || '-'}</p>
+                     </div>
+
+                     {selectedUserForDetails.role === 'student' && (
+                       <>
+                         <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/50">
+                           <p className="text-xs text-muted-foreground">Branch</p>
+                           <p className="font-medium">{selectedUserForDetails.branch || '-'}</p>
+                         </div>
+                         <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/50">
+                           <p className="text-xs text-muted-foreground">Section</p>
+                           <p className="font-medium">{selectedUserForDetails.section || '-'}</p>
+                         </div>
+                         <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/50">
+                           <p className="text-xs text-muted-foreground">Year</p>
+                           <p className="font-medium">{selectedUserForDetails.year || '-'}</p>
+                         </div>
+                         <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/50 col-span-2">
+                           <p className="text-xs text-muted-foreground">Parent Email</p>
+                           <p className="font-medium">{selectedUserForDetails.parentEmail || '-'}</p>
+                         </div>
+                         <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/50 col-span-2">
+                           <p className="text-xs text-muted-foreground">Parent Phone</p>
+                           <p className="font-medium">{selectedUserForDetails.parentPhone || '-'}</p>
+                         </div>
+                       </>
+                     )}
+
+                     {selectedUserForDetails.role === 'faculty' && (
+                       <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/50">
+                         <p className="text-xs text-muted-foreground">Department</p>
+                         <p className="font-medium">{selectedUserForDetails.department || '-'}</p>
+                       </div>
+                     )}
+                  </div>
+               </div>
+            )}
+            <DialogFooter>
+               <Button onClick={() => setSelectedUserForDetails(null)} className="rounded-xl w-full">Close</Button>
             </DialogFooter>
          </DialogContent>
       </Dialog>
